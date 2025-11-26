@@ -416,7 +416,6 @@ def create_calendar_reminders():
     try:
         from googleapiclient.discovery import build
         from google.auth.transport.requests import Request
-        import pytz
         
         data = request.get_json()
         user_id = data.get('user_id')
@@ -576,52 +575,89 @@ def get_upcoming_reminders():
                 "error": "user_id is required"
             }), 400
         
-        # For demo, return sample upcoming events
-        upcoming_events = [
-            {
-                "event_id": "cal_event_1",
-                "title": "APPLICATION DEADLINE: Software Engineering Internship",
-                "start_time": "2025-12-15T23:59:00Z",
-                "deadline_type": "application",
-                "urgency": "medium",
-                "days_until": 20,
-                "original_email": {
-                    "subject": "Software Engineering Internship - Application Deadline Reminder",
-                    "sender": "careers@techcorp.com"
+        # Fetch real upcoming events from Google Calendar
+        try:
+            from googleapiclient.discovery import build
+            from google.auth.transport.requests import Request
+            
+            with open('calendar_token.json', 'r') as f:
+                creds_data = json.load(f)
+            credentials = Credentials.from_authorized_user_info(creds_data)
+            
+            # Refresh token if expired
+            if credentials.expired and credentials.refresh_token:
+                credentials.refresh(Request())
+            
+            # Build Calendar API service
+            calendar_service = build('calendar', 'v3', credentials=credentials)
+            
+            # Get events from Google Calendar
+            from datetime import datetime, timedelta
+            now = datetime.utcnow().isoformat() + 'Z'
+            end_date = (datetime.utcnow() + timedelta(days=days_ahead)).isoformat() + 'Z'
+            
+            events_result = calendar_service.events().list(
+                calendarId='primary',
+                timeMin=now,
+                timeMax=end_date,
+                maxResults=100,
+                singleEvents=True,
+                orderBy='startTime',
+                q='Job Deadline'  # Filter for job deadline events
+            ).execute()
+            
+            events = events_result.get('items', [])
+            
+            upcoming_events = []
+            for event in events:
+                start = event['start'].get('dateTime', event['start'].get('date'))
+                
+                upcoming_events.append({
+                    "event_id": event['id'],
+                    "title": event.get('summary', 'No Title'),
+                    "start_time": start,
+                    "deadline_type": "application",  # Parse from title if needed
+                    "urgency": "medium",  # Calculate based on days until
+                    "days_until": (datetime.fromisoformat(start.replace('Z', '+00:00')) - datetime.now()).days,
+                    "calendar_link": event.get('htmlLink'),
+                    "description": event.get('description', '')
+                })
+            
+            return jsonify({
+                "success": True,
+                "user_id": user_id,
+                "query_parameters": {
+                    "days_ahead": days_ahead
                 },
-                "calendar_link": "https://calendar.google.com/calendar/event?eid=cal_event_1",
-                "next_reminder": "2025-12-14T23:59:00Z"
-            },
-            {
-                "event_id": "cal_event_2", 
-                "title": "ASSESSMENT DEADLINE: Coding Challenge",
-                "start_time": "2025-12-01T23:59:00Z",
-                "deadline_type": "assessment",
-                "urgency": "high",
-                "days_until": 6,
-                "original_email": {
-                    "subject": "Coding Challenge - Software Developer Position",
-                    "sender": "tech-hiring@startup.io"
+                "upcoming_events": upcoming_events,
+                "summary": {
+                    "total_events": len(upcoming_events),
+                    "high_urgency": sum(1 for e in upcoming_events if e.get('days_until', 999) <= 3),
+                    "medium_urgency": sum(1 for e in upcoming_events if 3 < e.get('days_until', 999) <= 7),
+                    "low_urgency": sum(1 for e in upcoming_events if e.get('days_until', 999) > 7)
+                }
+            })
+            
+        except FileNotFoundError:
+            # No calendar credentials - return empty list
+            return jsonify({
+                "success": True,
+                "user_id": user_id,
+                "upcoming_events": [],
+                "summary": {
+                    "total_events": 0,
+                    "high_urgency": 0,
+                    "medium_urgency": 0,
+                    "low_urgency": 0
                 },
-                "calendar_link": "https://calendar.google.com/calendar/event?eid=cal_event_2",
-                "next_reminder": "2025-11-30T23:59:00Z"
-            }
-        ]
-        
-        return jsonify({
-            "success": True,
-            "user_id": user_id,
-            "query_parameters": {
-                "days_ahead": days_ahead
-            },
-            "upcoming_events": upcoming_events,
-            "summary": {
-                "total_events": len(upcoming_events),
-                "high_urgency": sum(1 for e in upcoming_events if e['urgency'] == 'high'),
-                "medium_urgency": sum(1 for e in upcoming_events if e['urgency'] == 'medium'),
-                "low_urgency": sum(1 for e in upcoming_events if e['urgency'] == 'low')
-            }
-        })
+                "note": "Calendar credentials not found"
+            })
+        except Exception as e:
+            print(f"❌ Error fetching calendar events: {e}")
+            return jsonify({
+                "success": False,
+                "error": f"Failed to fetch calendar events: {str(e)}"
+            }), 500
         
     except Exception as e:
         return jsonify({

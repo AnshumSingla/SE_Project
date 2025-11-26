@@ -217,101 +217,21 @@ Create a calendar event JSON with:
         
         return result
 
-    def process_sample_emails(self):
-        """Process sample emails to test the system"""
-        sample_emails = [
-            {
-                "subject": "Software Engineering Internship - Application Deadline Reminder",
-                "sender": "careers@techcorp.com",
-                "date": "2025-11-25",
-                "body": """
-Dear Student,
 
-This is a reminder that the application deadline for our Summer 2025 Software Engineering Internship program is approaching.
-
-Application Deadline: December 15, 2025 at 11:59 PM PST
-
-Please submit your application, including resume, cover letter, and transcript through our careers portal.
-
-Best regards,
-TechCorp Recruitment Team
-"""
-            },
-            {
-                "subject": "Interview Invitation - Data Science Role",
-                "sender": "hr@datacompany.com", 
-                "date": "2025-11-25",
-                "body": """
-Hi there,
-
-We were impressed with your application for the Data Science position. We would like to invite you for an interview.
-
-Please confirm your availability for December 3, 2025 at 2:00 PM EST for a virtual interview.
-
-Please respond by November 30, 2025.
-
-Looking forward to hearing from you!
-
-Best,
-HR Team
-"""
-            },
-            {
-                "subject": "Pizza Party This Weekend!",
-                "sender": "friend@email.com",
-                "date": "2025-11-25", 
-                "body": """
-Hey! Want to join us for pizza this Saturday? Let me know!
-"""
-            }
-        ]
-        
-        print("🚀 Starting Email Reminder System Analysis...\n")
-        
-        results = []
-        for email in sample_emails:
-            result = self.analyze_email(email)
-            results.append(result)
-            
-            # Print summary
-            print(f"\n📧 Email: {email['subject']}")
-            print(f"🎯 Job Related: {result['classification'].get('is_job_related', False)}")
-            
-            if result['deadline_info'] and result['deadline_info'].get('has_deadline'):
-                deadline = result['deadline_info']
-                print(f"⏰ Deadline: {deadline.get('deadline_date')} {deadline.get('deadline_time', '')}")
-                print(f"📝 Type: {deadline.get('deadline_type', 'Unknown')}")
-                
-                if result['calendar_event']:
-                    print("✅ Calendar event created")
-            
-            print("-" * 50)
-            
-        return results
 
 def main():
-    """Main function to run the email reminder system"""
-    try:
-        # Initialize the system
-        system = EmailReminderSystem()
-        
-        # Process sample emails
-        results = system.process_sample_emails()
-        
-        print(f"\n🎉 Analysis Complete! Processed {len(results)} emails.")
-        
-        # Count job-related emails
-        job_related_count = sum(1 for r in results if r['classification'].get('is_job_related', False))
-        deadline_count = sum(1 for r in results if r.get('deadline_info', {}).get('has_deadline', False))
-        
-        print(f"📊 Summary:")
-        print(f"   - Job-related emails: {job_related_count}")
-        print(f"   - Emails with deadlines: {deadline_count}")
-        
-    except Exception as e:
-        print(f"❌ Error: {e}")
-        import traceback
-        traceback.print_exc()
+    """Main function - Use complete_system.py instead for production"""
+    print("🤖 Email Reminder System - AutoGen Multi-Agent Module")
+    print("📝 Note: This module uses OpenAI API and AutoGen for LLM-powered analysis.")
+    print("=" * 60)
+    print("\n⚠️  For full system functionality, please use complete_system.py")
+    print("    which integrates with Gmail and Google Calendar APIs.\n")
+    print("✨ This module provides:")
+    print("   1. LLM-powered email classification using AutoGen agents")
+    print("   2. Intelligent deadline extraction with natural language understanding")
+    print("   3. Multi-agent pipeline for complex email analysis")
+    print("   4. Requires OPENAI_API_KEY in .env file")
+    print("\n💡 For production use without API costs, complete_system.py uses rule-based analysis.")
 
 if __name__ == "__main__":
     main()

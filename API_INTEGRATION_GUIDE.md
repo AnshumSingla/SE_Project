@@ -67,26 +67,6 @@ POST /api/emails/scan
     "job_related_emails": 8,
     "emails_with_deadlines": 5
   },
-  "emails": [
-    {
-      "email_id": "msg_123",
-      "subject": "Software Engineering Internship",
-      "sender": "careers@company.com",
-      "classification": {
-        "is_job_related": true,
-        "category": "application",
-        "urgency": "medium",
-        "confidence": 0.95
-      },
-      "deadline": {
-        "has_deadline": true,
-        "date": "2025-12-15",
-        "time": "23:59",
-        "type": "application",
-        "urgency_days": 20
-      }
-    }
-  ]
 }
 ```
 

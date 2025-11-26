@@ -1,0 +1,294 @@
+import { useState, useEffect } from 'react'
+import { motion } from 'framer-motion'
+import { Calendar, momentLocalizer } from 'react-big-calendar'
+import moment from 'moment'
+import { useAuth } from '../context/AuthContext'
+import Navbar from '../components/Navbar'
+import EmailScanner from '../components/EmailScanner'
+import CustomReminderModal from '../components/CustomReminderModal'
+import ReminderSettings from '../components/ReminderSettings'
+import StatsCards from '../components/StatsCards'
+import UpcomingDeadlines from '../components/UpcomingDeadlines'
+import { apiService } from '../services/apiService'
+import toast from 'react-hot-toast'
+import 'react-big-calendar/lib/css/react-big-calendar.css'
+import '../styles/calendar.css'
+
+const localizer = momentLocalizer(moment)
+
+const HomePage = () => {
+  const { user } = useAuth()
+  const [events, setEvents] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [showReminderModal, setShowReminderModal] = useState(false)
+  const [reminderFrequency, setReminderFrequency] = useState(2)
+  const [calendarView, setCalendarView] = useState('month')
+  const [selectedDate, setSelectedDate] = useState(new Date())
+
+  useEffect(() => {
+    loadEvents()
+  }, [user])
+
+  const loadEvents = async () => {
+    if (!user) return
+    
+    try {
+      setLoading(true)
+      const response = await apiService.getUpcomingDeadlines(user.id)
+      
+      if (response.success) {
+        const formattedEvents = response.upcoming_events.map(event => ({
+          id: event.event_id,
+          title: event.title,
+          start: new Date(event.start_time),
+          end: new Date(event.start_time),
+          resource: {
+            type: event.deadline_type,
+            urgency: event.urgency,
+            originalEmail: event.original_email,
+            daysUntil: event.days_until
+          }
+        }))
+        setEvents(formattedEvents)
+      }
+    } catch (error) {
+      console.error('Error loading events:', error)
+      toast.error('Failed to load calendar events')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleEmailScanComplete = async (scanResults) => {
+    if (scanResults.success) {
+      toast.success(`Found ${scanResults.summary.job_related_emails} job-related emails`)
+      
+      // Create calendar reminders for emails with deadlines
+      const emailsWithDeadlines = scanResults.emails
+        .filter(email => email.deadline.has_deadline)
+        .map(email => email.email_id)
+      
+      if (emailsWithDeadlines.length > 0) {
+        try {
+          await apiService.createCalendarReminders(user.id, emailsWithDeadlines, {
+            default_reminders: getReminderTimes(reminderFrequency),
+            urgent_reminders: [10080, 1440, 60, 15] // Week, day, hour, 15min for urgent
+          })
+          
+          // Reload events to show new reminders
+          loadEvents()
+        } catch (error) {
+          console.error('Error creating reminders:', error)
+          toast.error('Failed to create calendar reminders')
+        }
+      }
+    }
+  }
+
+  const handleAddCustomReminder = async (reminderData) => {
+    try {
+      // In a real app, you'd send this to your backend
+      const newEvent = {
+        id: `custom_${Date.now()}`,
+        title: reminderData.title,
+        start: new Date(reminderData.date),
+        end: new Date(reminderData.date),
+        resource: {
+          type: 'custom',
+          urgency: reminderData.urgency || 'medium',
+          description: reminderData.description
+        }
+      }
+      
+      setEvents(prev => [...prev, newEvent])
+      toast.success('Custom reminder added successfully')
+      setShowReminderModal(false)
+    } catch (error) {
+      console.error('Error adding custom reminder:', error)
+      toast.error('Failed to add custom reminder')
+    }
+  }
+
+  const getReminderTimes = (frequency) => {
+    switch (frequency) {
+      case 1:
+        return [1440] // 1 day before
+      case 2:
+        return [10080, 1440] // 1 week and 1 day before
+      case 3:
+        return [10080, 1440, 60] // 1 week, 1 day, and 1 hour before
+      default:
+        return [1440]
+    }
+  }
+
+  const eventStyleGetter = (event) => {
+    const urgencyColors = {
+      high: 'bg-red-500/80',
+      medium: 'bg-yellow-500/80',
+      low: 'bg-green-500/80',
+      custom: 'bg-primary-500/80'
+    }
+    
+    return {
+      className: `${urgencyColors[event.resource?.urgency || 'medium']} text-white border-none rounded-lg`
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-dark-500">
+        <Navbar />
+        <div className="flex items-center justify-center pt-32">
+          <div className="animate-spin rounded-full h-12 w-12 border-2 border-primary-500 border-t-transparent"></div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-dark-500">
+      <Navbar />
+      
+      <main className="container mx-auto px-6 pt-24 pb-12">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+        >
+          {/* Header */}
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-text-primary mb-2">
+              Welcome back, {user?.name?.split(' ')[0]}! 👋
+            </h1>
+            <p className="text-text-secondary">
+              Stay on top of your job applications and never miss a deadline
+            </p>
+          </div>
+
+          {/* Stats Cards */}
+          <StatsCards events={events} />
+
+          {/* Main Content Grid */}
+          <div className="grid lg:grid-cols-3 gap-8 mb-8">
+            
+            {/* Left Column - Actions & Settings */}
+            <div className="space-y-6">
+              {/* Email Scanner */}
+              <EmailScanner 
+                onScanComplete={handleEmailScanComplete}
+                userId={user?.id}
+              />
+
+              {/* Reminder Settings */}
+              <ReminderSettings
+                frequency={reminderFrequency}
+                onChange={setReminderFrequency}
+              />
+
+              {/* Quick Actions */}
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                className="glass-card p-6 rounded-xl"
+              >
+                <h3 className="text-lg font-semibold text-text-primary mb-4">
+                  Quick Actions
+                </h3>
+                <div className="space-y-3">
+                  <button
+                    onClick={() => setShowReminderModal(true)}
+                    className="w-full btn-secondary text-left"
+                  >
+                    ➕ Add Custom Reminder
+                  </button>
+                  <button
+                    onClick={() => setCalendarView(calendarView === 'month' ? 'agenda' : 'month')}
+                    className="w-full btn-secondary text-left"
+                  >
+                    📅 Switch to {calendarView === 'month' ? 'List' : 'Calendar'} View
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+
+            {/* Right Column - Upcoming Deadlines */}
+            <div className="lg:col-span-2">
+              <UpcomingDeadlines events={events} />
+            </div>
+          </div>
+
+          {/* Calendar Section */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="glass-card p-6 rounded-xl"
+          >
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-text-primary">
+                Calendar Timeline
+              </h2>
+              <div className="flex items-center space-x-4">
+                <select
+                  value={calendarView}
+                  onChange={(e) => setCalendarView(e.target.value)}
+                  className="bg-dark-400 border border-primary-500/30 rounded-lg px-3 py-2 text-text-primary"
+                >
+                  <option value="month">Month View</option>
+                  <option value="week">Week View</option>
+                  <option value="agenda">Agenda View</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="calendar-container" style={{ height: '600px' }}>
+              <Calendar
+                localizer={localizer}
+                events={events}
+                startAccessor="start"
+                endAccessor="end"
+                view={calendarView}
+                onView={setCalendarView}
+                date={selectedDate}
+                onNavigate={setSelectedDate}
+                eventPropGetter={eventStyleGetter}
+                className="dark-calendar"
+                components={{
+                  toolbar: (props) => (
+                    <div className="flex justify-between items-center mb-4 p-4 bg-dark-400/50 rounded-lg">
+                      <button
+                        onClick={() => props.onNavigate('PREV')}
+                        className="btn-secondary px-4 py-2"
+                      >
+                        ‹ Previous
+                      </button>
+                      <h3 className="text-lg font-semibold text-text-primary">
+                        {moment(props.date).format('MMMM YYYY')}
+                      </h3>
+                      <button
+                        onClick={() => props.onNavigate('NEXT')}
+                        className="btn-secondary px-4 py-2"
+                      >
+                        Next ›
+                      </button>
+                    </div>
+                  )
+                }}
+              />
+            </div>
+          </motion.div>
+        </motion.div>
+      </main>
+
+      {/* Custom Reminder Modal */}
+      {showReminderModal && (
+        <CustomReminderModal
+          onClose={() => setShowReminderModal(false)}
+          onSave={handleAddCustomReminder}
+        />
+      )}
+    </div>
+  )
+}
+
+export default HomePage

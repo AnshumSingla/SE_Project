@@ -116,9 +116,26 @@ def scan_emails():
                 "error": "Email system not initialized"
             }), 500
         
-        # For demo, process sample emails
-        # In production, load user's actual Gmail credentials and process
-        results = email_system._process_sample_emails()
+        # Fetch and process real emails from user's Gmail account
+        try:
+            print(f"📧 Attempting to process emails for user: {user_id}")
+            results = email_system.process_user_emails(
+                user_id=user_id,
+                max_emails=max_emails,
+                days_back=days_back,
+                search_query=search_query
+            )
+            print(f"✅ Successfully processed {len(results)} emails")
+        except Exception as e:
+            print(f"❌ Error processing user emails: {e}")
+            print(f"📝 Falling back to sample emails for demonstration")
+            # Fallback to sample emails if real email processing fails
+            results = email_system._process_sample_emails()
+            
+            # Add a note about the fallback in the results
+            for result in results:
+                if 'email_data' in result:
+                    result['email_data']['note'] = 'Sample data - Gmail authentication pending'
         
         # Format results for API response
         formatted_results = []

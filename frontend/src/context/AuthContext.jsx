@@ -1,0 +1,115 @@
+import React, { createContext, useContext, useState, useEffect } from 'react'
+import { googleLogout } from '@react-oauth/google'
+import toast from 'react-hot-toast'
+
+const AuthContext = createContext()
+
+export const useAuth = () => {
+  const context = useContext(AuthContext)
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider')
+  }
+  return context
+}
+
+export const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    // Check for stored user data on app load
+    const storedUser = localStorage.getItem('jobReminderUser')
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser))
+      } catch (error) {
+        console.error('Error parsing stored user data:', error)
+        localStorage.removeItem('jobReminderUser')
+      }
+    }
+    setLoading(false)
+  }, [])
+
+  const login = async (credentialResponse) => {
+    try {
+      setLoading(true)
+      
+      // Handle demo mode
+      if (credentialResponse.credential === "demo_token_for_testing") {
+        const userData = {
+          id: 'demo_user_123',
+          email: 'demo@jobreminder.com',
+          name: 'Demo User',
+          picture: 'https://via.placeholder.com/96x96/00FFFF/1A1A1A?text=Demo',
+          token: 'demo_token_for_testing',
+          loginTime: new Date().toISOString(),
+          isDemoMode: true
+        }
+        
+        setUser(userData)
+        localStorage.setItem('jobReminderUser', JSON.stringify(userData))
+        toast.success(`Welcome to Demo Mode! 🚀`)
+        return
+      }
+      
+      // Decode the JWT token to get user info
+      const token = credentialResponse.credential
+      const base64Url = token.split('.')[1]
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split('')
+          .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      )
+      
+      const userInfo = JSON.parse(jsonPayload)
+      
+      const userData = {
+        id: userInfo.sub,
+        email: userInfo.email,
+        name: userInfo.name,
+        picture: userInfo.picture,
+        token: token,
+        loginTime: new Date().toISOString(),
+        isDemoMode: false
+      }
+      
+      setUser(userData)
+      localStorage.setItem('jobReminderUser', JSON.stringify(userData))
+      
+      toast.success(`Welcome back, ${userData.name}!`)
+      
+    } catch (error) {
+      console.error('Login error:', error)
+      toast.error('Authentication failed. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const logout = () => {
+    try {
+      googleLogout()
+      setUser(null)
+      localStorage.removeItem('jobReminderUser')
+      toast.success('Successfully logged out')
+    } catch (error) {
+      console.error('Logout error:', error)
+      toast.error('Error during logout')
+    }
+  }
+
+  const value = {
+    user,
+    login,
+    logout,
+    loading
+  }
+
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  )
+}

@@ -1,0 +1,202 @@
+/* Custom styles for React Big Calendar dark theme */
+
+/* Calendar container */
+.rbc-calendar {
+  background: transparent;
+  color: #E0E0E0;
+  font-family: Inter, Poppins, system-ui, sans-serif;
+}
+
+/* Calendar header */
+.rbc-header {
+  background: rgba(26, 26, 26, 0.8);
+  border-bottom: 1px solid rgba(0, 255, 255, 0.3);
+  color: #E0E0E0;
+  padding: 12px 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}
+
+/* Calendar toolbar */
+.rbc-toolbar {
+  background: rgba(26, 26, 26, 0.5);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+  border: 1px solid rgba(0, 255, 255, 0.3);
+}
+
+.rbc-toolbar button {
+  background: rgba(13, 13, 13, 0.8);
+  border: 1px solid rgba(0, 255, 255, 0.3);
+  color: #E0E0E0;
+  padding: 8px 16px;
+  margin: 0 4px;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+}
+
+.rbc-toolbar button:hover {
+  background: rgba(0, 255, 255, 0.1);
+  border-color: rgba(0, 255, 255, 0.5);
+  transform: translateY(-1px);
+}
+
+.rbc-toolbar button.rbc-active {
+  background: linear-gradient(135deg, #00FFFF, #00ADB5);
+  border-color: #00FFFF;
+  color: #0D0D0D;
+  font-weight: 600;
+}
+
+/* Month view */
+.rbc-month-view {
+  border: 1px solid rgba(0, 255, 255, 0.2);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.rbc-date-cell {
+  padding: 8px;
+  text-align: right;
+}
+
+.rbc-date-cell > a {
+  color: #B3B3B3;
+  font-weight: 500;
+}
+
+.rbc-date-cell > a:hover {
+  color: #00FFFF;
+}
+
+.rbc-off-range-bg {
+  background: rgba(13, 13, 13, 0.3);
+}
+
+.rbc-today {
+  background: rgba(0, 255, 255, 0.1);
+  border: 1px solid rgba(0, 255, 255, 0.3);
+}
+
+/* Events */
+.rbc-event {
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 6px;
+  margin: 1px 0;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.rbc-event:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 12px rgba(0, 255, 255, 0.3);
+}
+
+.rbc-event.rbc-selected {
+  box-shadow: 0 0 0 2px #00FFFF;
+}
+
+/* Agenda view */
+.rbc-agenda-view table {
+  background: transparent;
+}
+
+.rbc-agenda-view .rbc-agenda-table {
+  border: 1px solid rgba(0, 255, 255, 0.2);
+  border-radius: 8px;
+}
+
+.rbc-agenda-view .rbc-agenda-table thead > tr > th {
+  background: rgba(26, 26, 26, 0.8);
+  border-bottom: 1px solid rgba(0, 255, 255, 0.3);
+  color: #00FFFF;
+  padding: 12px;
+  font-weight: 600;
+}
+
+.rbc-agenda-view .rbc-agenda-table tbody > tr > td {
+  border-bottom: 1px solid rgba(0, 255, 255, 0.1);
+  padding: 12px;
+  color: #E0E0E0;
+}
+
+.rbc-agenda-view .rbc-agenda-table tbody > tr:hover > td {
+  background: rgba(0, 255, 255, 0.05);
+}
+
+/* Time slots */
+.rbc-time-slot {
+  border-top: 1px solid rgba(0, 255, 255, 0.1);
+  color: #B3B3B3;
+}
+
+.rbc-timeslot-group {
+  border-bottom: 1px solid rgba(0, 255, 255, 0.2);
+}
+
+/* Week view */
+.rbc-time-header {
+  border-bottom: 1px solid rgba(0, 255, 255, 0.3);
+}
+
+.rbc-time-content {
+  border-top: none;
+}
+
+.rbc-day-bg + .rbc-day-bg {
+  border-left: 1px solid rgba(0, 255, 255, 0.1);
+}
+
+/* Custom event styles by urgency */
+.rbc-event.high-urgency {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.9), rgba(220, 38, 38, 0.9));
+  color: white;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+}
+
+.rbc-event.medium-urgency {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.9), rgba(217, 119, 6, 0.9));
+  color: white;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
+}
+
+.rbc-event.low-urgency {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.9), rgba(22, 163, 74, 0.9));
+  color: white;
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.3);
+}
+
+.rbc-event.custom-urgency {
+  background: linear-gradient(135deg, rgba(0, 255, 255, 0.9), rgba(0, 173, 181, 0.9));
+  color: #0D0D0D;
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .rbc-toolbar {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .rbc-toolbar-label {
+    order: -1;
+    margin-bottom: 8px;
+  }
+  
+  .rbc-btn-group {
+    display: flex;
+    justify-content: center;
+  }
+  
+  .rbc-event {
+    font-size: 10px;
+    padding: 1px 4px;
+  }
+}

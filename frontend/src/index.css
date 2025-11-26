@@ -1,0 +1,67 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-gray-200;
+  }
+  
+  body {
+    @apply bg-dark-500 text-text-primary font-sans;
+    background-image: 
+      radial-gradient(circle at 25% 25%, rgba(0, 255, 255, 0.1) 0%, transparent 50%),
+      radial-gradient(circle at 75% 75%, rgba(0, 173, 181, 0.1) 0%, transparent 50%);
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-dark-400/80 backdrop-blur-lg border border-primary-500/20 shadow-lg;
+  }
+  
+  .glass-nav {
+    @apply bg-dark-400/60 backdrop-blur-xl border-b border-primary-500/30;
+  }
+  
+  .btn-primary {
+    @apply bg-gradient-to-r from-primary-500 to-accent-500 text-dark-500 font-medium px-6 py-3 rounded-lg 
+           transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-primary-500/25
+           active:scale-95 border border-primary-400/50;
+  }
+  
+  .btn-secondary {
+    @apply bg-dark-400/50 text-text-primary border border-primary-500/30 px-6 py-3 rounded-lg
+           transition-all duration-300 hover:bg-dark-300/50 hover:border-primary-500/50
+           hover:shadow-md hover:shadow-primary-500/10;
+  }
+  
+  .neon-glow {
+    @apply shadow-lg shadow-primary-500/25;
+  }
+  
+  .neon-border {
+    @apply border border-primary-500/50 shadow-sm shadow-primary-500/20;
+  }
+  
+  .text-glow {
+    text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}

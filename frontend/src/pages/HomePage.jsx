@@ -61,27 +61,75 @@ const HomePage = () => {
 
   const handleEmailScanComplete = async (scanResults) => {
     if (scanResults.success) {
-      toast.success(`Found ${scanResults.summary.job_related_emails} job-related emails`)
+      const jobEmails = scanResults.summary.job_related_emails
+      const deadlineEmails = scanResults.summary.emails_with_deadlines
       
-      // Create calendar reminders for emails with deadlines
-      const emailsWithDeadlines = scanResults.emails
-        .filter(email => email.deadline.has_deadline)
-        .map(email => email.email_id)
+      toast.success(`Found ${jobEmails} job-related emails with ${deadlineEmails} deadlines!`)
+      
+      // Convert scanned emails with deadlines to calendar events
+      const emailsWithDeadlines = scanResults.emails.filter(email => email.deadline.has_deadline)
       
       if (emailsWithDeadlines.length > 0) {
         try {
-          await apiService.createCalendarReminders(user.id, emailsWithDeadlines, {
-            default_reminders: getReminderTimes(reminderFrequency),
-            urgent_reminders: [10080, 1440, 60, 15] // Week, day, hour, 15min for urgent
+          // Create backend reminders with full email data for Google Calendar sync
+          await apiService.createCalendarReminders(
+            user.id, 
+            emailsWithDeadlines, // Pass full email objects, not just IDs
+            {
+              default_reminders: getReminderTimes(reminderFrequency),
+              urgent_reminders: [10080, 1440, 60, 15]
+            }
+          )
+          
+          // Add events to calendar UI immediately
+          const newEvents = emailsWithDeadlines.map(email => {
+            // Parse deadline date/time properly without timezone conversion
+            let deadlineDate
+            if (email.deadline.date) {
+              const dateStr = email.deadline.date
+              const timeStr = email.deadline.time || '23:59:00'
+              // Parse as local time, not UTC
+              deadlineDate = new Date(`${dateStr}T${timeStr}`)
+            } else {
+              deadlineDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // Default 7 days from now
+            }
+            
+            return {
+              id: email.email_id,
+              title: `📧 ${email.subject}`,
+              start: deadlineDate,
+              end: deadlineDate,
+              resource: {
+                type: email.deadline.type || 'application',
+                urgency: email.classification.urgency || 'medium',
+                originalEmail: {
+                  subject: email.subject,
+                  sender: email.sender,
+                  snippet: email.snippet
+                },
+                daysUntil: email.deadline.urgency_days || 0,
+                description: email.deadline.description || email.snippet
+              }
+            }
           })
           
-          // Reload events to show new reminders
-          loadEvents()
+          // Merge new events with existing events (avoid duplicates)
+          setEvents(prev => {
+            const existingIds = new Set(prev.map(e => e.id))
+            const uniqueNewEvents = newEvents.filter(e => !existingIds.has(e.id))
+            return [...prev, ...uniqueNewEvents]
+          })
+          
+          toast.success(`Added ${newEvents.length} deadlines to your calendar! 📅`)
         } catch (error) {
           console.error('Error creating reminders:', error)
           toast.error('Failed to create calendar reminders')
         }
+      } else {
+        toast.info('No deadlines found in job-related emails')
       }
+    } else {
+      toast.error('Email scan failed')
     }
   }
 

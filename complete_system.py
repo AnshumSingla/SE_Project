@@ -320,8 +320,8 @@ class IntegratedEmailReminderSystem:
         print()
         
         if not self.gmail:
-            print("⚠️ Gmail not available, using sample emails...")
-            return self._process_sample_emails()
+            print("❌ Gmail not available")
+            raise Exception("Gmail integration is not initialized. Please authenticate with Google.")
         
         # Fetch emails from Gmail
         print(f"📧 Fetching emails from Gmail (last {days_back} days)...")
@@ -338,8 +338,7 @@ class IntegratedEmailReminderSystem:
                 
         except Exception as e:
             print(f"❌ Gmail fetch failed: {e}")
-            print("⚠️ Falling back to sample emails...")
-            return self._process_sample_emails()
+            raise Exception(f"Failed to fetch emails from Gmail: {str(e)}")
         
         # Process each email
         print(f"\n🔍 Analyzing {len(emails)} emails...")
@@ -416,8 +415,8 @@ class IntegratedEmailReminderSystem:
             print(f"📧 Fetched {len(emails)} emails from Gmail")
             
             if not emails:
-                print("📝 No emails found, using sample data")
-                return self._process_sample_emails()
+                print("📭 No emails found in the specified time range")
+                return []
             
             # Process each email with enhanced analysis
             results = []
@@ -452,10 +451,12 @@ class IntegratedEmailReminderSystem:
             print(f"❌ Error fetching real emails: {e}")
             print(f"   Error type: {type(e).__name__}")
             print(f"   Credentials file exists: {os.path.exists(os.getenv('GMAIL_CREDENTIALS_FILE', ''))}")
-            print("📝 Falling back to sample emails for demo")
-            
-            # Return enhanced sample emails with more realistic job-related content
-            return self._get_enhanced_sample_emails()
+            print("\n⚠️ Gmail API Error - Cannot fetch emails without valid credentials")
+            print("Please ensure:")
+            print("  1. You are logged in with Google OAuth")
+            print("  2. Gmail API is enabled in Google Cloud Console")
+            print("  3. Valid gmail_token.json exists")
+            raise Exception(f"Gmail authentication required: {str(e)}")
     
     def _get_enhanced_sample_emails(self) -> List[Dict]:
         """Get enhanced sample emails that look more realistic"""

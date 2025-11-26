@@ -24,13 +24,13 @@ http://127.0.0.1:3000
 
 ### Step 4: Add Authorized Redirect URIs
 
-Add these EXACT URLs:
+Add these EXACT URLs (FIXED - No more random ports!):
 
 ```
-http://localhost:3000
-http://localhost:3000/
-http://localhost:3000/dashboard
+http://localhost:5000/auth/google/callback
 ```
+
+**This is the ONLY redirect URI you need!** The server-side OAuth flow uses this fixed URL instead of random ports.
 
 ### Step 5: Save Changes
 
@@ -43,8 +43,8 @@ While waiting for OAuth to be fixed, click **"Try Demo Mode"** on the landing pa
 
 ## Current System URLs
 
-- Frontend: http://localhost:3000
-- Backend: http://localhost:5000
+- Frontend: http://localhost:3000 (currently running)
+- Backend: http://localhost:5000 (currently running)
 - Your Google Client ID: 851801272480-re4eu38s6hqnl3jb00viarbmcu14n1fg.apps.googleusercontent.com
 
 Once you complete these steps, the Google Sign-In will work properly!

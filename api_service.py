@@ -5,14 +5,21 @@ Flask-based API service that provides endpoints for the web/mobile app
 to interact with the AutoGen email processing system.
 """
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, redirect, session, url_for
 from flask_cors import CORS
+from dotenv import load_dotenv
 import os
 import json
+import requests
+import urllib.parse
+import secrets
+from google.oauth2.credentials import Credentials
 from datetime import datetime
 from typing import Dict, List, Optional
 import traceback
-from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Import our email processing system
 from complete_system import IntegratedEmailReminderSystem
@@ -21,7 +28,29 @@ from complete_system import IntegratedEmailReminderSystem
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for web app integration
+
+# IMPORTANT: Set a secret key for sessions
+app.secret_key = os.environ.get('SECRET_KEY') or os.urandom(24)
+
+# Configure session
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
+
+# Enable CORS with credentials
+CORS(app, origins=["http://localhost:3000"], supports_credentials=True)
+
+# Google OAuth Configuration (Manual - No Authlib!)
+GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
+GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
+GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo'
+REDIRECT_URI = 'http://localhost:5000/auth/google/callback'
+SCOPES = [
+    'openid',
+    'https://www.googleapis.com/auth/userinfo.email',
+    'https://www.googleapis.com/auth/userinfo.profile',
+    'https://www.googleapis.com/auth/gmail.readonly',
+    'https://www.googleapis.com/auth/calendar'
+]
 
 # Global system instance
 email_system = None
@@ -35,6 +64,153 @@ def init_system():
     except Exception as e:
         print(f"❌ System initialization failed: {e}")
         return False
+
+@app.route('/auth/google')
+def google_login():
+    """Initiate Google OAuth flow - Manual implementation (no Authlib!)"""
+    # Generate state for CSRF protection
+    state = secrets.token_urlsafe(32)
+    session['oauth_state'] = state
+    
+    # Build authorization URL manually
+    params = {
+        'client_id': os.environ.get('GOOGLE_CLIENT_ID'),
+        'redirect_uri': REDIRECT_URI,
+        'response_type': 'code',
+        'scope': ' '.join(SCOPES),
+        'state': state,
+        'access_type': 'offline',  # Request refresh token
+        'prompt': 'consent'  # Force consent screen to get refresh token
+    }
+    
+    auth_url = f"{GOOGLE_AUTH_URL}?{urllib.parse.urlencode(params)}"
+    print(f"🔗 Redirecting to: {auth_url}")
+    
+    return redirect(auth_url)
+
+@app.route('/auth/google/callback')
+def google_callback():
+    """Handle Google OAuth callback with manual token exchange"""
+    try:
+        # Verify state to prevent CSRF attacks
+        state = request.args.get('state')
+        if state != session.get('oauth_state'):
+            raise Exception("Invalid state parameter - possible CSRF attack")
+        
+        # Get authorization code from URL
+        code = request.args.get('code')
+        
+        if not code:
+            raise Exception("No authorization code received")
+        
+        # Manually exchange code for token
+        token_data = {
+            'code': code,
+            'client_id': os.environ.get('GOOGLE_CLIENT_ID'),
+            'client_secret': os.environ.get('GOOGLE_CLIENT_SECRET'),
+            'redirect_uri': REDIRECT_URI,
+            'grant_type': 'authorization_code'
+        }
+        
+        print(f"🔄 Exchanging authorization code for access token...")
+        
+        # Exchange code for token
+        token_response = requests.post(GOOGLE_TOKEN_URL, data=token_data)
+        token_response.raise_for_status()
+        token = token_response.json()
+        
+        access_token = token.get('access_token')
+        refresh_token = token.get('refresh_token')
+        
+        print(f"✅ Access token received: {access_token[:20]}...")
+        print(f"🔄 Refresh token received: {'Yes' if refresh_token else 'No'}")
+        
+        # Get user info from Google
+        headers = {'Authorization': f'Bearer {access_token}'}
+        userinfo_response = requests.get(GOOGLE_USERINFO_URL, headers=headers)
+        userinfo_response.raise_for_status()
+        user_info = userinfo_response.json()
+        
+        # Store in session
+        session['user'] = user_info
+        session['access_token'] = access_token
+        session['refresh_token'] = token.get('refresh_token')
+        
+        # Create credentials for Gmail/Calendar APIs
+        credentials_dict = {
+            'token': access_token,
+            'refresh_token': token.get('refresh_token'),
+            'token_uri': 'https://oauth2.googleapis.com/token',
+            'client_id': os.environ.get('GOOGLE_CLIENT_ID'),
+            'client_secret': os.environ.get('GOOGLE_CLIENT_SECRET'),
+            'scopes': token.get('scope', '').split()
+        }
+        
+        credentials = Credentials.from_authorized_user_info(credentials_dict)
+        
+        # Save credentials to token files
+        with open('gmail_token.json', 'w') as f:
+            f.write(credentials.to_json())
+        with open('calendar_token.json', 'w') as f:
+            f.write(credentials.to_json())
+        
+        # Extract user info
+        email = user_info.get('email', '').replace('"', '&quot;')
+        name = user_info.get('name', '').replace('"', '&quot;')
+        picture = user_info.get('picture', '').replace('"', '&quot;')
+        user_id = user_info.get('id', '').replace('"', '&quot;')
+        
+        print(f"✅ Manual token exchange successful: {email}")
+        
+        return f'''
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Success</title>
+            </head>
+            <body>
+                <h2>✅ Authentication Successful!</h2>
+                <script>
+                    if (window.opener) {{
+                        window.opener.postMessage({{
+                            success: true,
+                            user: {{
+                                email: "{email}",
+                                name: "{name}",
+                                picture: "{picture}",
+                                sub: "{user_id}"
+                            }},
+                            accessToken: "{access_token}"
+                        }}, 'http://localhost:3000');
+                        setTimeout(() => window.close(), 1000);
+                    }}
+                </script>
+            </body>
+            </html>
+        '''
+        
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        return f'''
+            <!DOCTYPE html>
+            <html>
+            <body>
+                <h2>❌ Error</h2>
+                <p>{str(e)}</p>
+                <script>
+                    if (window.opener) {{
+                        window.opener.postMessage({{
+                            success: false,
+                            error: '{str(e)}'
+                        }}, 'http://localhost:3000');
+                    }}
+                </script>
+            </body>
+            </html>
+        '''
 
 @app.route('/health', methods=['GET'])
 def health_check():
@@ -99,6 +275,7 @@ def scan_emails():
     try:
         data = request.get_json()
         user_id = data.get('user_id')
+        access_token = data.get('access_token')  # Get access token from request
         max_emails = data.get('max_emails', 50)
         days_back = data.get('days_back', 7)
         search_query = data.get('search_query', '')
@@ -109,6 +286,13 @@ def scan_emails():
                 "error": "user_id is required"
             }), 400
         
+        print(f"🔍 Scanning emails for user: {user_id}")
+        print(f"📧 Access token provided: {'Yes' if access_token else 'No'}")
+        if access_token and access_token != 'demo_token_for_testing':
+            print(f"🔑 Real Gmail access token detected (length: {len(access_token)})")
+        else:
+            print(f"🎭 Using demo/fallback mode")
+        
         # Process emails using the system
         if not email_system:
             return jsonify({
@@ -117,25 +301,14 @@ def scan_emails():
             }), 500
         
         # Fetch and process real emails from user's Gmail account
-        try:
-            print(f"📧 Attempting to process emails for user: {user_id}")
-            results = email_system.process_user_emails(
-                user_id=user_id,
-                max_emails=max_emails,
-                days_back=days_back,
-                search_query=search_query
-            )
-            print(f"✅ Successfully processed {len(results)} emails")
-        except Exception as e:
-            print(f"❌ Error processing user emails: {e}")
-            print(f"📝 Falling back to sample emails for demonstration")
-            # Fallback to sample emails if real email processing fails
-            results = email_system._process_sample_emails()
-            
-            # Add a note about the fallback in the results
-            for result in results:
-                if 'email_data' in result:
-                    result['email_data']['note'] = 'Sample data - Gmail authentication pending'
+        print(f"📧 Attempting to process emails for user: {user_id}")
+        results = email_system.process_user_emails(
+            user_id=user_id,
+            max_emails=max_emails,
+            days_back=days_back,
+            search_query=search_query
+        )
+        print(f"✅ Successfully processed {len(results)} emails from Gmail")
         
         # Format results for API response
         formatted_results = []
@@ -199,21 +372,41 @@ def scan_emails():
         })
         
     except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        error_message = str(e)
+        print(f"❌ Email scan error: {error_message}")
+        
+        # Provide user-friendly error messages
+        if "Gmail authentication required" in error_message or "not initialized" in error_message:
+            return jsonify({
+                "success": False,
+                "error": "Gmail authentication required",
+                "message": "Please sign in with Google to access your Gmail account",
+                "details": error_message
+            }), 401
+        elif "Failed to fetch emails" in error_message:
+            return jsonify({
+                "success": False,
+                "error": "Failed to fetch emails from Gmail",
+                "message": "Unable to access your Gmail. Please check your permissions and try again.",
+                "details": error_message
+            }), 500
+        else:
+            return jsonify({
+                "success": False,
+                "error": str(e),
+                "traceback": traceback.format_exc()
+            }), 500
 
 @app.route('/api/calendar/reminders', methods=['POST'])
 def create_calendar_reminders():
     """
     Create calendar reminders for selected emails with deadlines
+    Syncs with Google Calendar for cross-device access
     
     Expected payload:
     {
         "user_id": "unique_user_id",
-        "email_ids": ["email_id_1", "email_id_2"],
+        "emails": [{"email_id": "...", "subject": "...", "deadline": {...}}],
         "reminder_preferences": {
             "default_reminders": [1440, 60],  // minutes before
             "urgent_reminders": [10080, 1440, 60]
@@ -221,9 +414,14 @@ def create_calendar_reminders():
     }
     """
     try:
+        from googleapiclient.discovery import build
+        from google.auth.transport.requests import Request
+        import pytz
+        
         data = request.get_json()
         user_id = data.get('user_id')
-        email_ids = data.get('email_ids', [])
+        emails = data.get('emails', [])
+        email_ids = data.get('email_ids', [])  # Fallback for old format
         reminder_prefs = data.get('reminder_preferences', {})
         
         if not user_id:
@@ -232,34 +430,127 @@ def create_calendar_reminders():
                 "error": "user_id is required"
             }), 400
         
-        # Process calendar reminder creation
-        created_events = []
-        for email_id in email_ids:
-            # In production, fetch actual email data by ID
-            # For demo, create sample event
-            event_data = {
-                "event_id": f"cal_event_{email_id}",
-                "email_id": email_id,
-                "title": "Job Deadline Reminder",
-                "start_time": "2025-12-01T09:00:00Z",
-                "end_time": "2025-12-01T10:00:00Z",
-                "reminders": reminder_prefs.get('default_reminders', [1440, 60]),
-                "calendar_link": f"https://calendar.google.com/calendar/event?eid={email_id}",
-                "status": "created"
-            }
-            created_events.append(event_data)
-        
-        return jsonify({
-            "success": True,
-            "user_id": user_id,
-            "created_events": created_events,
-            "summary": {
-                "total_events_created": len(created_events),
-                "failed_events": 0
-            }
-        })
+        # Load calendar credentials
+        try:
+            with open('calendar_token.json', 'r') as f:
+                creds_data = json.load(f)
+            credentials = Credentials.from_authorized_user_info(creds_data)
+            
+            # Refresh token if expired
+            if credentials.expired and credentials.refresh_token:
+                credentials.refresh(Request())
+            
+            # Build Calendar API service
+            calendar_service = build('calendar', 'v3', credentials=credentials)
+            
+            created_events = []
+            failed_events = []
+            
+            for email in emails:
+                try:
+                    email_id = email.get('email_id')
+                    subject = email.get('subject', 'Job Deadline')
+                    deadline = email.get('deadline', {})
+                    
+                    if not deadline.get('has_deadline'):
+                        continue
+                    
+                    # Parse deadline date/time (handle timezone properly)
+                    deadline_date = deadline.get('date')
+                    deadline_time = deadline.get('time', '23:59:00')
+                    
+                    # Combine date and time, treat as local timezone
+                    from datetime import datetime as dt
+                    deadline_str = f"{deadline_date}T{deadline_time}"
+                    deadline_dt = dt.fromisoformat(deadline_str.replace('Z', ''))
+                    
+                    # Get user's timezone from environment or default to Asia/Kolkata (India)
+                    user_timezone = os.environ.get('DEFAULT_TIMEZONE', 'Asia/Kolkata')
+                    
+                    # Create event in user's local timezone (don't convert to UTC)
+                    event_body = {
+                        'summary': f'📧 Job Deadline: {subject[:100]}',
+                        'description': f'{deadline.get("description", "")}\n\nEmail: {email.get("snippet", "")}',
+                        'start': {
+                            'dateTime': deadline_dt.isoformat(),
+                            'timeZone': user_timezone,
+                        },
+                        'end': {
+                            'dateTime': deadline_dt.isoformat(),
+                            'timeZone': user_timezone,
+                        },
+                        'reminders': {
+                            'useDefault': False,
+                            'overrides': [
+                                {'method': 'popup', 'minutes': min_before}
+                                for min_before in reminder_prefs.get('default_reminders', [1440, 60])
+                            ],
+                        },
+                        'colorId': '11',  # Red for urgent deadlines
+                    }
+                    
+                    # Create event in Google Calendar
+                    event = calendar_service.events().insert(
+                        calendarId='primary',
+                        body=event_body
+                    ).execute()
+                    
+                    created_events.append({
+                        "event_id": event['id'],
+                        "email_id": email_id,
+                        "title": subject,
+                        "start_time": deadline_dt.isoformat(),
+                        "calendar_link": event.get('htmlLink'),
+                        "status": "synced_to_google_calendar"
+                    })
+                    
+                    print(f"✅ Created Google Calendar event: {subject}")
+                    
+                except Exception as e:
+                    print(f"❌ Failed to create event for {email.get('subject')}: {e}")
+                    failed_events.append(email_id)
+            
+            return jsonify({
+                "success": True,
+                "user_id": user_id,
+                "created_events": created_events,
+                "summary": {
+                    "total_events_created": len(created_events),
+                    "failed_events": len(failed_events),
+                    "synced_to_google_calendar": True
+                }
+            })
+            
+        except FileNotFoundError:
+            # Fallback if no calendar credentials
+            print("⚠️ No calendar credentials found - returning mock data")
+            created_events = []
+            for email in emails:
+                if email.get('deadline', {}).get('has_deadline'):
+                    created_events.append({
+                        "event_id": f"cal_event_{email.get('email_id')}",
+                        "email_id": email.get('email_id'),
+                        "title": email.get('subject'),
+                        "start_time": email['deadline'].get('date'),
+                        "status": "created_locally_only"
+                    })
+            
+            return jsonify({
+                "success": True,
+                "user_id": user_id,
+                "created_events": created_events,
+                "summary": {
+                    "total_events_created": len(created_events),
+                    "failed_events": 0,
+                    "synced_to_google_calendar": False,
+                    "note": "Calendar credentials not found - events created locally only"
+                }
+            })
         
     except Exception as e:
+        print(f"❌ Error creating calendar reminders: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             "success": False,
             "error": str(e),

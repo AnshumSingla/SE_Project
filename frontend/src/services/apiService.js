@@ -55,8 +55,10 @@ export const apiService = {
   // Scan emails for job opportunities
   scanEmails: async (userId, options = {}) => {
     try {
+      const user = JSON.parse(localStorage.getItem('jobReminderUser') || '{}')
       const response = await api.post('/api/emails/scan', {
         user_id: userId,
+        access_token: user.accessToken || user.token || 'demo_token_for_testing',
         max_emails: options.max_emails || 50,
         days_back: options.days_back || 7,
         search_query: options.search_query || ''
@@ -68,11 +70,11 @@ export const apiService = {
   },
 
   // Create calendar reminders
-  createCalendarReminders: async (userId, emailIds, reminderPreferences = {}) => {
+  createCalendarReminders: async (userId, emails, reminderPreferences = {}) => {
     try {
       const response = await api.post('/api/calendar/reminders', {
         user_id: userId,
-        email_ids: emailIds,
+        emails: emails, // Full email objects with deadline info
         reminder_preferences: {
           default_reminders: reminderPreferences.default_reminders || [1440, 60],
           urgent_reminders: reminderPreferences.urgent_reminders || [10080, 1440, 60]

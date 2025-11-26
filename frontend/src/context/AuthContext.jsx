@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { googleLogout } from '@react-oauth/google'
 import toast from 'react-hot-toast'
 
@@ -13,6 +14,7 @@ export const useAuth = () => {
 }
 
 export const AuthProvider = ({ children }) => {
+  const navigate = useNavigate()
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -49,6 +51,29 @@ export const AuthProvider = ({ children }) => {
         setUser(userData)
         localStorage.setItem('jobReminderUser', JSON.stringify(userData))
         toast.success(`Welcome to Demo Mode! 🚀`)
+        navigate('/dashboard')
+        return
+      }
+      
+      // Handle server-side OAuth
+      if (credentialResponse.credential === "server_auth_token") {
+        const userInfo = credentialResponse.userInfo || {}
+        const userData = {
+          id: userInfo.sub || 'authenticated_user_456',
+          email: userInfo.email || 'user@gmail.com',
+          name: userInfo.name || 'Gmail User',
+          picture: userInfo.picture || 'https://via.placeholder.com/96x96/00FF00/FFFFFF?text=✓',
+          token: 'server_auth_token',
+          accessToken: credentialResponse.accessToken || 'demo_access_token',
+          loginTime: new Date().toISOString(),
+          isDemoMode: false,
+          hasGmailAccess: true
+        }
+        
+        setUser(userData)
+        localStorage.setItem('jobReminderUser', JSON.stringify(userData))
+        toast.success(`Welcome ${userData.name}! Gmail access enabled 📧`)
+        navigate('/dashboard')
         return
       }
       
@@ -79,6 +104,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('jobReminderUser', JSON.stringify(userData))
       
       toast.success(`Welcome back, ${userData.name}!`)
+      navigate('/dashboard')
       
     } catch (error) {
       console.error('Login error:', error)

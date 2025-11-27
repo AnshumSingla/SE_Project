@@ -6,7 +6,6 @@ import { useAuth } from '../context/AuthContext'
 import Navbar from '../components/Navbar'
 import EmailScanner from '../components/EmailScanner'
 import CustomReminderModal from '../components/CustomReminderModal'
-import ReminderSettings from '../components/ReminderSettings'
 import StatsCards from '../components/StatsCards'
 import UpcomingDeadlines from '../components/UpcomingDeadlines'
 import { apiService } from '../services/apiService'
@@ -21,7 +20,6 @@ const HomePage = () => {
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
   const [showReminderModal, setShowReminderModal] = useState(false)
-  const [reminderFrequency, setReminderFrequency] = useState(2)
   const [calendarView, setCalendarView] = useState('month')
   const [selectedDate, setSelectedDate] = useState(new Date())
 
@@ -93,7 +91,7 @@ const HomePage = () => {
 
       // 5️⃣ Create new events on Google Calendar
       await apiService.createCalendarReminders(user.id, newDeadlines, {
-        default_reminders: getReminderTimes(reminderFrequency),
+        default_reminders: [10080, 1440], // 1 week and 1 day before
         urgent_reminders: [10080, 1440, 60]
       })
 
@@ -192,19 +190,6 @@ const HomePage = () => {
     } catch (error) {
       console.error('Error adding custom reminder:', error)
       toast.error('Failed to add custom reminder')
-    }
-  }
-
-  const getReminderTimes = (frequency) => {
-    switch (frequency) {
-      case 1:
-        return [1440] // 1 day before
-      case 2:
-        return [10080, 1440] // 1 week and 1 day before
-      case 3:
-        return [10080, 1440, 60] // 1 week, 1 day, and 1 hour before
-      default:
-        return [1440]
     }
   }
 
@@ -348,12 +333,6 @@ const HomePage = () => {
               <EmailScanner 
                 onScanComplete={handleEmailScanComplete}
                 userId={user?.id}
-              />
-
-              {/* Reminder Settings */}
-              <ReminderSettings
-                frequency={reminderFrequency}
-                onChange={setReminderFrequency}
               />
 
               {/* Quick Actions */}

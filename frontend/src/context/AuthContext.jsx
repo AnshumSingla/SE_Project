@@ -21,11 +21,14 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     // Check for stored user data on app load
     const storedUser = localStorage.getItem('jobReminderUser')
+    console.log('🔍 AuthContext: Checking stored user...', storedUser ? 'Found' : 'None')
     if (storedUser) {
       try {
-        setUser(JSON.parse(storedUser))
+        const parsedUser = JSON.parse(storedUser)
+        console.log('✅ AuthContext: User loaded from localStorage:', parsedUser.email)
+        setUser(parsedUser)
       } catch (error) {
-        console.error('Error parsing stored user data:', error)
+        console.error('❌ Error parsing stored user data:', error)
         localStorage.removeItem('jobReminderUser')
       }
     }
@@ -70,10 +73,16 @@ export const AuthProvider = ({ children }) => {
           hasGmailAccess: true
         }
         
+        console.log('💾 AuthContext: Saving user to localStorage:', userData.email)
         setUser(userData)
         localStorage.setItem('jobReminderUser', JSON.stringify(userData))
+        console.log('✅ AuthContext: User saved, navigating to dashboard...')
         toast.success(`Welcome ${userData.name}! Gmail access enabled 📧`)
-        navigate('/dashboard')
+        
+        // Use setTimeout to ensure state updates before navigation
+        setTimeout(() => {
+          navigate('/dashboard')
+        }, 100)
         return
       }
       

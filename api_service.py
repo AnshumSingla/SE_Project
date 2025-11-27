@@ -448,8 +448,8 @@ def scan_emails():
         expired_count = 0
         duplicate_count = 0
         
-        # Load existing calendar events once for duplicate detection
-        existing_titles = _get_existing_calendar_events()
+        # Load existing calendar events once for duplicate detection (pass credentials)
+        existing_titles = _get_existing_calendar_events(credentials_override=credentials)
         
         for result in results:
             email_data = result.get('email_data', {})
@@ -1279,17 +1279,17 @@ def _is_future_deadline(deadline_date: str) -> bool:
         print(f"⚠️ Error checking deadline date: {e}")
         return False
 
-def _get_existing_calendar_events():
-    """Load all existing 'Job Deadline' events from Google Calendar to detect duplicates"""
+def _get_existing_calendar_events(credentials_override=None):
+    """Load all existing events from Google Calendar to detect duplicates"""
     from googleapiclient.discovery import build
     from google.auth.transport.requests import Request
     from datetime import timedelta
     
     try:
-        # Load calendar credentials from session (Vercel-compatible)
-        credentials = get_credentials_from_session()
+        # Use provided credentials or load from session
+        credentials = credentials_override or get_credentials_from_session()
         if not credentials:
-            print("⚠️ No credentials in session - skipping duplicate check")
+            print("⚠️ No credentials available - skipping duplicate check")
             return set()
         
         # Refresh token if expired
@@ -1307,9 +1307,10 @@ def _get_existing_calendar_events():
             calendarId='primary',
             timeMin=now,
             timeMax=end,
+            maxResults=250,
             singleEvents=True,
-            orderBy='startTime',
-            q='Job Deadline'  # Search for events with this text
+            orderBy='startTime'
+            # Removed q filter to get ALL events
         ).execute()
         
         # Extract and normalize event summaries for comparison

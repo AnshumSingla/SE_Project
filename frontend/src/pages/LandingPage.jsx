@@ -13,8 +13,14 @@ const LandingPage = () => {
   const handleServerAuth = () => {
     // Listen for OAuth callback
     const handleMessage = (event) => {
-      // Accept messages from localhost with any port
-      if (!event.origin.includes('localhost')) return
+      // Accept messages from backend (localhost or Vercel)
+      const backendUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
+      const allowedOrigins = ['http://localhost:5000', backendUrl.replace(/\/$/, '')]
+      
+      if (!allowedOrigins.some(origin => event.origin.startsWith(origin))) {
+        console.log('Ignoring message from:', event.origin)
+        return
+      }
       
       if (event.data.success) {
         // Create credential response with real user data and access token

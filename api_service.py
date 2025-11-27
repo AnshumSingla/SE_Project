@@ -211,6 +211,9 @@ def google_callback():
         
         print(f"✅ Manual token exchange successful: {email}")
         
+        # Get frontend URL from environment for postMessage
+        frontend_url = os.environ.get('FRONTEND_URL', 'http://localhost:3000').rstrip('/')
+        
         return f'''
             <!DOCTYPE html>
             <html>
@@ -230,7 +233,7 @@ def google_callback():
                                 sub: "{user_id}"
                             }},
                             accessToken: "{access_token}"
-                        }}, 'http://localhost:3000');
+                        }}, '*');
                         setTimeout(() => window.close(), 1000);
                     }}
                 </script>
@@ -254,7 +257,7 @@ def google_callback():
                         window.opener.postMessage({{
                             success: false,
                             error: '{str(e)}'
-                        }}, 'http://localhost:3000');
+                        }}, '*');
                     }}
                 </script>
             </body>

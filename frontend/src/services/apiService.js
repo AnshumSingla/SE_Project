@@ -88,12 +88,14 @@ export const apiService = {
   },
 
   // Get upcoming deadlines
-  getUpcomingDeadlines: async (userId, daysAhead = 30) => {
+  getUpcomingDeadlines: async (userId, daysAhead = 90) => {
     try {
+      const user = JSON.parse(localStorage.getItem('jobReminderUser') || '{}')
       const response = await api.get('/api/calendar/upcoming', {
         params: {
           user_id: userId,
-          days_ahead: daysAhead
+          days_ahead: daysAhead,
+          access_token: user.accessToken || user.token  // Pass access token
         }
       })
       return response.data

@@ -985,7 +985,8 @@ def get_upcoming_reminders():
     """
     try:
         user_id = request.args.get('user_id')
-        days_ahead = int(request.args.get('days_ahead', 30))
+        days_ahead = int(request.args.get('days_ahead', 90))  # Increased to 90 days
+        access_token = request.args.get('access_token')  # Get access token from query params
         
         if not user_id:
             return jsonify({
@@ -995,6 +996,7 @@ def get_upcoming_reminders():
         
         print(f"📅 Fetching upcoming events for user: {user_id}")
         print(f"🔍 Session credentials available: {session.get('credentials') is not None}")
+        print(f"🔑 Access token provided: {bool(access_token)}")
         
         # Fetch real upcoming events from Google Calendar
         try:
@@ -1002,8 +1004,27 @@ def get_upcoming_reminders():
             from google.auth.transport.requests import Request
             
             credentials = get_credentials_from_session()
+            
+            # If no session credentials, try to use access token from request
+            if not credentials and access_token:
+                print(f"🔑 No session credentials, using access token from request")
+                try:
+                    # Reconstruct credentials from access token
+                    from google.oauth2.credentials import Credentials
+                    credentials = Credentials(
+                        token=access_token,
+                        client_id=os.environ.get('GOOGLE_CLIENT_ID'),
+                        client_secret=os.environ.get('GOOGLE_CLIENT_SECRET'),
+                        token_uri='https://oauth2.googleapis.com/token',
+                        scopes=SCOPES
+                    )
+                    print(f"✅ Reconstructed credentials from access token")
+                except Exception as e:
+                    print(f"❌ Failed to reconstruct credentials: {e}")
+                    credentials = None
+            
             if not credentials:
-                print("⚠️ No credentials in session - returning empty events list")
+                print("⚠️ No credentials available - returning empty events list")
                 # Return empty list instead of 401 (session expired on Vercel)
                 return jsonify({
                     "success": True,

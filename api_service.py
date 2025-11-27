@@ -33,12 +33,22 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY') or os.urandom(24)
 
 # Configure session
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
+app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Required for cross-site cookies
+app.config['SESSION_COOKIE_SECURE'] = True  # Required for production HTTPS
+
+# Get allowed origins from environment or use defaults
+ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    os.environ.get('FRONTEND_URL', '').rstrip('/'),
+    os.environ.get('VITE_FRONTEND_URL', '').rstrip('/')
+]
+# Remove empty strings
+ALLOWED_ORIGINS = [origin for origin in ALLOWED_ORIGINS if origin]
 
 # Enable CORS with credentials and explicit methods
 CORS(app, 
-     origins=["http://localhost:3000", "http://localhost:5173"], 
+     origins=ALLOWED_ORIGINS, 
      supports_credentials=True,
      methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
      allow_headers=["Content-Type", "Authorization"])
@@ -47,7 +57,9 @@ CORS(app,
 GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
 GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo'
-REDIRECT_URI = 'http://localhost:5000/auth/google/callback'
+# Use environment variable for redirect URI (supports Vercel deployment)
+BACKEND_URL = os.environ.get('BACKEND_URL', 'http://localhost:5000')
+REDIRECT_URI = f"{BACKEND_URL.rstrip('/')}/auth/google/callback"
 SCOPES = [
     'openid',
     'https://www.googleapis.com/auth/userinfo.email',
@@ -73,7 +85,7 @@ def init_system():
 def after_request(response):
     """Ensure CORS headers are set on all responses"""
     origin = request.headers.get('Origin')
-    if origin in ["http://localhost:3000", "http://localhost:5173"]:
+    if origin in ALLOWED_ORIGINS:
         response.headers['Access-Control-Allow-Origin'] = origin
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'

@@ -57,8 +57,10 @@ CORS(app,
 GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
 GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo'
-# Use environment variable for redirect URI (supports Vercel deployment)
+# Use environment variable for redirect URI (NO FALLBACK - must be set in production)
 BACKEND_URL = os.environ.get('BACKEND_URL')
+if not BACKEND_URL:
+    raise ValueError("❌ BACKEND_URL environment variable must be set! Set it in Vercel dashboard.")
 REDIRECT_URI = f"{BACKEND_URL.rstrip('/')}/auth/google/callback"
 SCOPES = [
     'openid',

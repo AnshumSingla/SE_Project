@@ -111,6 +111,7 @@ export const AuthProvider = ({ children }) => {
       googleLogout()
       setUser(null)
       localStorage.removeItem('jobReminderUser')
+      localStorage.removeItem('lastSync') // Clear sync timestamp on logout
       toast.success('Successfully logged out')
     } catch (error) {
       console.error('Logout error:', error)

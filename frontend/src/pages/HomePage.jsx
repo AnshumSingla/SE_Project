@@ -30,6 +30,12 @@ const HomePage = () => {
   const initializeSync = async () => {
     setLoading(true)
     try {
+      // Check if we need to scan Gmail (once per day)
+      const lastSync = localStorage.getItem('lastSync')
+      const nowTimestamp = Date.now()
+      const oneDay = 24 * 60 * 60 * 1000 // 1 day in ms
+      const shouldScanEmails = !lastSync || nowTimestamp - lastSync > oneDay
+      
       // 1️⃣ Load all existing reminders from Google Calendar
       const calendarResponse = await apiService.getUpcomingDeadlines(user.id)
       const now = new Date()
@@ -53,7 +59,16 @@ const HomePage = () => {
       setEvents(existingEvents)
       console.log(`✅ Loaded ${existingEvents.length} existing Google Calendar reminders.`)
 
-      // 2️⃣ Automatically scan Gmail for new deadlines
+      // 2️⃣ Only scan Gmail if it's been more than 24 hours
+      if (!shouldScanEmails) {
+        console.log('✅ Skipping Gmail scan – recent session')
+        toast.dismiss()
+        toast.success('Calendar synced successfully 🎉')
+        setLoading(false)
+        return
+      }
+      
+      console.log('🔄 Long gap detected – scanning Gmail for new emails...')
       toast.loading('Syncing latest emails...')
       const scanResults = await apiService.scanEmails(user.id)
 
@@ -126,6 +141,9 @@ const HomePage = () => {
         )
         return unique.filter(e => e.start >= now)
       })
+
+      // Update last sync timestamp
+      localStorage.setItem('lastSync', nowTimestamp.toString())
 
       toast.dismiss()
       toast.success(`Synced ${newDeadlines.length} new deadlines to calendar! 📅`)

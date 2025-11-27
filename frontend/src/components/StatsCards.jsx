@@ -4,14 +4,17 @@ import { Calendar, Clock, AlertTriangle, CheckCircle } from 'lucide-react'
 const StatsCards = ({ events }) => {
   const now = new Date()
   
+  // Filter to only include future events (safety net)
+  const futureEvents = events.filter(e => new Date(e.start) > now)
+  
   const stats = {
-    total: events.length,
-    upcoming: events.filter(e => new Date(e.start) > now).length,
-    urgent: events.filter(e => {
+    total: futureEvents.length, // Only count future deadlines
+    upcoming: futureEvents.length, // Same as total for clarity
+    urgent: futureEvents.filter(e => {
       const daysUntil = Math.ceil((new Date(e.start) - now) / (1000 * 60 * 60 * 24))
       return daysUntil <= 3 && daysUntil > 0
     }).length,
-    thisWeek: events.filter(e => {
+    thisWeek: futureEvents.filter(e => {
       const eventDate = new Date(e.start)
       const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
       return eventDate > now && eventDate <= weekFromNow

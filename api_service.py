@@ -966,6 +966,10 @@ def get_upcoming_reminders():
                 try:
                     event_date = datetime.fromisoformat(start.replace('Z', '+00:00'))
                     days_until = (event_date - datetime.now()).days
+                    
+                    # Skip past events (additional safety check)
+                    if days_until < 0:
+                        continue
                 except:
                     days_until = 0
                 

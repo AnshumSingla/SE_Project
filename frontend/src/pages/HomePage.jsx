@@ -37,18 +37,21 @@ const HomePage = () => {
       const response = await apiService.getUpcomingDeadlines(user.id)
       
       if (response.success) {
-        const formattedEvents = response.upcoming_events.map(event => ({
-          id: event.event_id,
-          title: event.title,
-          start: new Date(event.start_time),
-          end: new Date(event.start_time),
-          resource: {
-            type: event.deadline_type,
-            urgency: event.urgency,
-            originalEmail: event.original_email,
-            daysUntil: event.days_until
-          }
-        }))
+        const now = new Date()
+        const formattedEvents = response.upcoming_events
+          .map(event => ({
+            id: event.event_id,
+            title: event.title,
+            start: new Date(event.start_time),
+            end: new Date(event.start_time),
+            resource: {
+              type: event.deadline_type,
+              urgency: event.urgency,
+              originalEmail: event.original_email,
+              daysUntil: event.days_until
+            }
+          }))
+          .filter(event => event.start > now) // Only keep future events
         setEvents(formattedEvents)
       }
     } catch (error) {

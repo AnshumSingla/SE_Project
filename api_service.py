@@ -504,6 +504,84 @@ def scan_emails():
         print(f"   ❌ Total filtered: {skipped_count}")
         print(f"   ✅ New reminders to show: {len(formatted_results)}")
         
+        # 🎯 AUTO-CREATE CALENDAR EVENTS for new reminders
+        calendar_events_created = 0
+        try:
+            # Get calendar service
+            calendar_credentials = get_credentials_from_session()
+            
+            # If no session credentials, try to use access token from request
+            if not calendar_credentials and access_token and access_token != 'demo_token_for_testing':
+                from google.oauth2.credentials import Credentials
+                calendar_credentials = Credentials(
+                    token=access_token,
+                    client_id=os.environ.get('GOOGLE_CLIENT_ID'),
+                    client_secret=os.environ.get('GOOGLE_CLIENT_SECRET'),
+                    token_uri='https://oauth2.googleapis.com/token',
+                    scopes=SCOPES
+                )
+            
+            if calendar_credentials:
+                from googleapiclient.discovery import build
+                from google.auth.transport.requests import Request
+                
+                # Refresh token if expired
+                if calendar_credentials.expired and calendar_credentials.refresh_token:
+                    calendar_credentials.refresh(Request())
+                
+                calendar_service = build('calendar', 'v3', credentials=calendar_credentials)
+                print(f"📅 Calendar service ready - creating events for {len(formatted_results)} reminders...")
+                
+                for result in formatted_results:
+                    if not result['deadline']['has_deadline']:
+                        continue
+                    
+                    try:
+                        deadline_date = result['deadline']['date']
+                        deadline_time = result['deadline'].get('time') or '23:59:00'
+                        deadline_dt = datetime.fromisoformat(f"{deadline_date}T{deadline_time}")
+                        
+                        # Create calendar event
+                        event_body = {
+                            'summary': f"📧 {result['subject'][:100]}",
+                            'description': f"From: {result['sender']}\n\n{result['deadline'].get('description', result['snippet'])}",
+                            'start': {
+                                'dateTime': deadline_dt.isoformat(),
+                                'timeZone': os.getenv('DEFAULT_TIMEZONE', 'Asia/Kolkata')
+                            },
+                            'end': {
+                                'dateTime': deadline_dt.isoformat(),
+                                'timeZone': os.getenv('DEFAULT_TIMEZONE', 'Asia/Kolkata')
+                            },
+                            'reminders': {
+                                'useDefault': False,
+                                'overrides': [
+                                    {'method': 'email', 'minutes': 10080},  # 1 week
+                                    {'method': 'popup', 'minutes': 1440},   # 1 day
+                                    {'method': 'popup', 'minutes': 60}      # 1 hour
+                                ]
+                            },
+                            'colorId': '11'  # Red for urgency
+                        }
+                        
+                        event = calendar_service.events().insert(
+                            calendarId='primary',
+                            body=event_body
+                        ).execute()
+                        
+                        calendar_events_created += 1
+                        print(f"✅ Created calendar event: {result['subject'][:50]}")
+                        
+                    except Exception as e:
+                        print(f"⚠️ Failed to create calendar event for '{result['subject'][:50]}': {e}")
+                
+                print(f"🎉 Successfully created {calendar_events_created}/{len(formatted_results)} calendar events!")
+            else:
+                print("⚠️ No calendar credentials available - skipping calendar event creation")
+                
+        except Exception as e:
+            print(f"❌ Calendar event creation error: {e}")
+        
         # Calculate summary statistics based on actual valid results
         job_related_count = sum(1 for r in formatted_results if r['classification']['is_job_related'])
         new_reminders_ready = sum(1 for r in formatted_results if r['deadline']['has_deadline'])
@@ -516,6 +594,7 @@ def scan_emails():
                 "total_emails_scanned": len(results),
                 "valid_future_deadlines": new_reminders_ready,
                 "new_reminders_ready": new_reminders_ready,
+                "calendar_events_created": calendar_events_created,
                 "job_related_emails": job_related_count,
                 "expired_filtered": expired_count,
                 "duplicates_filtered": duplicate_count,

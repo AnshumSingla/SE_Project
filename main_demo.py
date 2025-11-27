@@ -73,15 +73,21 @@ class EmailReminderSystem:
             if not has_year and parsed.year == now.year:
                 # Calculate days difference
                 days_diff = (parsed.date() - now.date()).days
+                days_past = abs(days_diff) if days_diff < 0 else 0
                 
-                if days_diff < -30:
-                    # More than 30 days in the past - likely describing a past event/position
+                # Only infer next year if date is within 45 days in the past (about 6 weeks)
+                # Beyond that, it's likely describing a past event, not a future deadline
+                if days_diff < 0 and days_past <= 45:
                     # Try next year
                     try:
                         parsed = parsed.replace(year=now.year + 1)
                         print(f"  ⏭️  Inferred next year for '{date_string}': {parsed.strftime('%Y-%m-%d')}")
                     except ValueError:
                         pass
+                elif days_diff < 0 and days_past > 45:
+                    # Too far in the past - likely describing old position/event, skip it
+                    print(f"  ⏪ Skipping old past date (>{days_past} days ago) '{date_string}': {parsed.strftime('%Y-%m-%d')}")
+                    return None
                 elif days_diff < 0 and from_subject:
                     # Date is in the past and from subject line - likely describing position, not a deadline
                     print(f"  ⏪ Skipping past date from subject '{date_string}': {parsed.strftime('%Y-%m-%d')}")
@@ -181,6 +187,11 @@ class EmailReminderSystem:
         
         print(f"  🔍 Searching for deadlines in: {subject[:50]}...")
         
+        # Detect forwarded emails
+        is_forwarded = 'fwd:' in subject.lower() or 'fw:' in subject.lower() or 're:' in subject.lower()
+        if is_forwarded:
+            print(f"  📧 Detected forwarded/replied email - skipping subject dates")
+        
         # Separate searches for body and subject to prioritize body
         body_dates = []
         subject_dates = []
@@ -211,8 +222,8 @@ class EmailReminderSystem:
         has_body_date = any(d for d in body_dates if d['parsed'].date() != datetime.now().date())
         
         # Then search subject (less reliable - often describes the position itself)
-        # Only use subject dates if no meaningful body dates found
-        if not has_body_date:
+        # Skip subject dates if email is forwarded OR if meaningful body dates found
+        if not has_body_date and not is_forwarded:
             for pattern in self.deadline_patterns:
                 matches = re.findall(pattern, subject, re.IGNORECASE)
                 for match in matches:
@@ -233,8 +244,10 @@ class EmailReminderSystem:
                         if match not in deadline_texts:
                             deadline_texts.append(match)
                         print(f"  ✅ Parsed as: {parsed_date.strftime('%Y-%m-%d %H:%M')}")
-        else:
+        elif has_body_date:
             print(f"  ⏭️  Skipping subject line dates (found meaningful date(s) in body)")
+        elif is_forwarded:
+            print(f"  ⏭️  Skipping subject line dates (forwarded email)")
         
         # Combine, prioritizing body dates
         found_dates = body_dates + subject_dates

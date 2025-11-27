@@ -528,19 +528,9 @@ def scan_emails():
         # 🎯 AUTO-CREATE CALENDAR EVENTS for new reminders
         calendar_events_created = 0
         try:
-            # Get calendar service
-            calendar_credentials = get_credentials_from_session()
-            
-            # If no session credentials, try to use access token from request
-            if not calendar_credentials and access_token and access_token != 'demo_token_for_testing':
-                from google.oauth2.credentials import Credentials
-                calendar_credentials = Credentials(
-                    token=access_token,
-                    client_id=os.environ.get('GOOGLE_CLIENT_ID'),
-                    client_secret=os.environ.get('GOOGLE_CLIENT_SECRET'),
-                    token_uri='https://oauth2.googleapis.com/token',
-                    scopes=SCOPES
-                )
+            # Get calendar service - use same credentials as Gmail scan
+            calendar_credentials = credentials  # Reuse the credentials we already have from above
+            print(f"🔑 Using existing credentials for calendar event creation")
             
             if calendar_credentials:
                 from googleapiclient.discovery import build

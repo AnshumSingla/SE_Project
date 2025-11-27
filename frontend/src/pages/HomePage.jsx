@@ -270,6 +270,30 @@ const HomePage = () => {
 
       toast.dismiss()
       toast.success(`Synced ${newDeadlines.length} new deadlines to calendar! 📅`)
+      
+      // 7️⃣ Refresh calendar events from Google Calendar to get actual event IDs
+      console.log('🔄 Refreshing calendar events from Google Calendar...')
+      const refreshedCalendar = await apiService.getUpcomingDeadlines(user.id)
+      if (refreshedCalendar.success) {
+        const refreshedEvents = refreshedCalendar.upcoming_events
+          .map(event => ({
+            id: event.event_id,
+            title: event.title.trim(),
+            start: new Date(event.start_time),
+            end: new Date(event.start_time),
+            resource: {
+              type: event.deadline_type,
+              urgency: event.urgency,
+              originalEmail: event.original_email,
+              daysUntil: event.days_until
+            }
+          }))
+          .filter(e => e.start >= now)
+        
+        setEvents(refreshedEvents)
+        console.log(`✅ Refreshed ${refreshedEvents.length} events from Google Calendar`)
+      }
+      
     } catch (err) {
       console.error('❌ Error syncing reminders:', err)
       toast.dismiss()

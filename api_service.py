@@ -368,10 +368,20 @@ def scan_emails():
         
         print(f"🔍 Scanning emails for user: {user_id}")
         print(f"📧 Access token provided: {'Yes' if access_token else 'No'}")
+        
+        # Check for credentials in session
+        credentials = get_credentials_from_session()
+        if not credentials:
+            print("⚠️ No credentials in session - Gmail authentication required")
+            return jsonify({
+                "success": False,
+                "error": "Gmail authentication required",
+                "message": "Please sign in with Google to scan your emails"
+            }), 401
+        
+        print(f"✅ Valid credentials found in session")
         if access_token and access_token != 'demo_token_for_testing':
             print(f"🔑 Real Gmail access token detected (length: {len(access_token)})")
-        else:
-            print(f"🎭 Using demo/fallback mode")
         
         # Process emails using the system
         if not email_system:
@@ -379,6 +389,10 @@ def scan_emails():
                 "success": False,
                 "error": "Email system not initialized"
             }), 500
+        
+        # Set credentials for Gmail service
+        from gmail_integration import GmailIntegrator
+        email_system.gmail = GmailIntegrator(credentials=credentials)
         
         # Fetch and process real emails from user's Gmail account
         print(f"📧 Attempting to process emails for user: {user_id}")

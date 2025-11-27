@@ -27,10 +27,11 @@ class GmailIntegrator:
     # Gmail API scope - read-only access to Gmail
     SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
     
-    def __init__(self, credentials_file='credentials.json', token_file='token.json'):
+    def __init__(self, credentials_file=None, token_file='token.json', credentials=None):
         self.credentials_file = credentials_file
         self.token_file = token_file
         self.service = None
+        self.credentials = credentials  # Accept direct credentials object
         
         if not GOOGLE_LIBRARIES_AVAILABLE:
             raise ImportError(
@@ -42,8 +43,12 @@ class GmailIntegrator:
         """Authenticate with Gmail API using OAuth2"""
         creds = None
         
+        # Use provided credentials if available (for Vercel/serverless)
+        if self.credentials:
+            print("✅ Using provided credentials object")
+            creds = self.credentials
         # Load existing token (JSON format from OAuth callback)
-        if os.path.exists(self.token_file):
+        elif os.path.exists(self.token_file):
             try:
                 with open(self.token_file, 'r') as token:
                     creds_data = json.load(token)
@@ -56,13 +61,14 @@ class GmailIntegrator:
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
                 creds.refresh(Request())
-                # Save refreshed credentials
-                with open(self.token_file, 'w') as token:
-                    token.write(creds.to_json())
+                # Save refreshed credentials only if using file-based auth
+                if not self.credentials and self.token_file:
+                    with open(self.token_file, 'w') as token:
+                        token.write(creds.to_json())
             else:
-                if not os.path.exists(self.credentials_file):
+                if not self.credentials_file or not os.path.exists(self.credentials_file):
                     raise FileNotFoundError(
-                        f"Gmail credentials file '{self.credentials_file}' not found. "
+                        f"Gmail credentials not available. "
                         "Please authenticate via /auth/google endpoint."
                     )
                 

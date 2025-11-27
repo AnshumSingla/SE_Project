@@ -191,16 +191,39 @@ class IntegratedEmailReminderSystem:
     def setup_llm_agents(self):
         """Setup AutoGen LLM agents for enhanced analysis"""
         try:
-            api_key = os.getenv("OPENAI_API_KEY")
-            llm_config = {
-                "config_list": [
-                    {
-                        "model": "gpt-4o-mini",
-                        "api_key": api_key,
-                    }
-                ],
-                "temperature": 0.0,
-            }
+            llm_provider = os.getenv("LLM_PROVIDER", "openai").lower()
+            
+            if llm_provider == "gemini":
+                # Use Google Gemini
+                api_key = os.getenv("GEMINI_API_KEY")
+                if not api_key:
+                    raise ValueError("GEMINI_API_KEY not set in .env file")
+                llm_config = {
+                    "config_list": [
+                        {
+                            "model": "gemini-1.5-flash",
+                            "api_key": api_key,
+                            "api_type": "google",
+                        }
+                    ],
+                    "temperature": 0.0,
+                }
+                print("✅ Using Google Gemini for LLM analysis")
+            else:
+                # Use OpenAI (default)
+                api_key = os.getenv("OPENAI_API_KEY")
+                if not api_key:
+                    raise ValueError("OPENAI_API_KEY not set in .env file")
+                llm_config = {
+                    "config_list": [
+                        {
+                            "model": "gpt-4o-mini",
+                            "api_key": api_key,
+                        }
+                    ],
+                    "temperature": 0.0,
+                }
+                print("✅ Using OpenAI GPT for LLM analysis")
             
             self.user_proxy = autogen.UserProxyAgent(
                 name="UserProxy",
@@ -215,8 +238,8 @@ class IntegratedEmailReminderSystem:
                 system_message=(
                     "You are an expert email classifier for job opportunities. "
                     "Analyze emails with high accuracy to identify job-related content, "
-                    "career opportunities, application deadlines, interviews, assessments, "
-                    "and academic opportunities. Respond ONLY in JSON format with: "
+                    "career opportunities, application deadlines, interviews and assessments"
+                    ". Respond ONLY in JSON format with: "
                     '{"is_job_related": true/false, "confidence": 0.0-1.0, '
                     '"category": "job_posting|interview|assessment|deadline|application|academic|networking|other", '
                     '"urgency": "high|medium|low", "reasoning": "detailed explanation"}'
@@ -239,8 +262,9 @@ class IntegratedEmailReminderSystem:
             except Exception as e:
                 print(f"   ⚠️ LLM analysis failed: {e}, falling back to rule-based")
         
-        # Fallback to rule-based analysis
-        return self.rule_based_system.analyze_email(email_data)
+        # Fallback to rule-based analysis (with calendar service for duplicate detection)
+        calendar_service = getattr(self.calendar, 'service', None) if self.calendar else None
+        return self.rule_based_system.analyze_email(email_data, calendar_service=calendar_service)
     
     def _analyze_with_llm(self, email_data: Dict) -> Dict:
         """Analyze email using AutoGen LLM agents"""
@@ -287,10 +311,15 @@ class IntegratedEmailReminderSystem:
             deadline_info = self.rule_based_system.extract_deadlines_rule_based(email_data)
             result["deadline_info"] = deadline_info
             
-            # Create calendar event if deadline found
-            if deadline_info.get("has_deadline", False) and self.calendar:
+            # Create calendar event if deadline found (with duplicate detection)
+            if deadline_info.get("has_deadline", False):
+                calendar_service = getattr(self.calendar, 'service', None) if self.calendar else None
                 try:
-                    calendar_event = self.calendar.create_deadline_reminder(email_data, deadline_info)
+                    calendar_event = self.rule_based_system.create_calendar_event(
+                        email_data, 
+                        deadline_info,
+                        calendar_service=calendar_service
+                    )
                     result["calendar_event"] = calendar_event
                 except Exception as e:
                     print(f"   ⚠️ Calendar event creation failed: {e}")
@@ -422,6 +451,9 @@ class IntegratedEmailReminderSystem:
             results = []
             job_related_count = 0
             deadlines_found = 0
+            calendar_events_created = 0
+            duplicates_skipped = 0
+            past_deadlines_skipped = 0
             
             for email in emails:
                 try:
@@ -433,6 +465,19 @@ class IntegratedEmailReminderSystem:
                         
                     if result['deadline_info'].get('has_deadline', False):
                         deadlines_found += 1
+                        
+                        # Check calendar event status
+                        calendar_event = result.get('calendar_event')
+                        if calendar_event:
+                            status = calendar_event.get('status')
+                            if status == 'duplicate':
+                                duplicates_skipped += 1
+                                print(f"   ⏭️  Skipped duplicate: {email.get('subject', '')[:50]}...")
+                            elif status == 'rejected':
+                                past_deadlines_skipped += 1
+                                print(f"   ⏪ Skipped past deadline: {email.get('subject', '')[:50]}...")
+                            elif not status:  # Successfully created
+                                calendar_events_created += 1
                     
                     results.append(result)
                     
@@ -444,6 +489,9 @@ class IntegratedEmailReminderSystem:
             print(f"   📧 Total emails processed: {len(results)}")
             print(f"   💼 Job-related emails: {job_related_count}")
             print(f"   ⏰ Deadlines found: {deadlines_found}")
+            print(f"   📅 Calendar events created: {calendar_events_created}")
+            print(f"   🔄 Duplicates skipped: {duplicates_skipped}")
+            print(f"   ⏪ Past deadlines skipped: {past_deadlines_skipped}")
             
             return results
             

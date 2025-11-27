@@ -1,8 +1,9 @@
 import { motion } from 'framer-motion'
-import { Calendar, Clock, Mail, AlertTriangle, CheckCircle, Star } from 'lucide-react'
+import { Calendar, Clock, Mail, AlertTriangle, CheckCircle, Star, Trash2 } from 'lucide-react'
 import moment from 'moment'
+import toast from 'react-hot-toast'
 
-const UpcomingDeadlines = ({ events }) => {
+const UpcomingDeadlines = ({ events, onDeleteEvent }) => {
   const now = new Date()
   const upcomingEvents = events
     .filter(event => new Date(event.start) > now)
@@ -129,10 +130,19 @@ const UpcomingDeadlines = ({ events }) => {
                 </div>
               </div>
               
-              <div className="text-right ml-4">
+              <div className="flex flex-col items-end ml-4 space-y-2">
                 <div className="text-sm font-medium text-primary-400">
                   in {getTimeUntil(event.start)}
                 </div>
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => onDeleteEvent(event.id, event.title)}
+                  className="p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-colors group"
+                  title="Delete reminder"
+                >
+                  <Trash2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                </motion.button>
               </div>
             </div>
           </motion.div>

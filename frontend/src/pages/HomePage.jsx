@@ -63,8 +63,13 @@ const HomePage = () => {
     if (scanResults.success) {
       const jobEmails = scanResults.summary.job_related_emails
       const deadlineEmails = scanResults.summary.emails_with_deadlines
+      const duplicatesFiltered = scanResults.summary.duplicates_filtered || 0
       
-      toast.success(`Found ${jobEmails} job-related emails with ${deadlineEmails} deadlines!`)
+      let message = `Found ${jobEmails} job-related emails with ${deadlineEmails} deadlines!`
+      if (duplicatesFiltered > 0) {
+        message += ` (${duplicatesFiltered} duplicates/past deadlines filtered)`
+      }
+      toast.success(message)
       
       // Convert scanned emails with deadlines to calendar events
       const emailsWithDeadlines = scanResults.emails.filter(email => email.deadline.has_deadline)
@@ -130,6 +135,32 @@ const HomePage = () => {
       }
     } else {
       toast.error('Email scan failed')
+    }
+  }
+
+  const handleDeleteEvent = async (eventId, eventTitle) => {
+    // Show confirmation dialog
+    const confirmed = window.confirm(
+      `Are you sure you want to delete this reminder?\n\n"${eventTitle}"\n\nThis will remove it from your calendar and cannot be undone.`
+    )
+    
+    if (!confirmed) return
+    
+    try {
+      // Show loading toast
+      const loadingToast = toast.loading('Deleting reminder...')
+      
+      // Delete from backend/Google Calendar
+      await apiService.deleteReminder(user.id, eventId)
+      
+      // Remove from local state
+      setEvents(prev => prev.filter(event => event.id !== eventId))
+      
+      toast.dismiss(loadingToast)
+      toast.success('Reminder deleted successfully! 🗑️')
+    } catch (error) {
+      console.error('Error deleting reminder:', error)
+      toast.error('Failed to delete reminder. Please try again.')
     }
   }
 
@@ -261,7 +292,10 @@ const HomePage = () => {
 
             {/* Right Column - Upcoming Deadlines */}
             <div className="lg:col-span-2">
-              <UpcomingDeadlines events={events} />
+              <UpcomingDeadlines 
+                events={events} 
+                onDeleteEvent={handleDeleteEvent}
+              />
             </div>
           </div>
 

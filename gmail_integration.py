@@ -6,7 +6,7 @@ Requires Gmail API credentials setup.
 """
 
 import os
-import pickle
+import json
 import base64
 from email.mime.text import MIMEText
 from typing import Dict, List, Optional
@@ -16,6 +16,7 @@ try:
     from google.auth.transport.requests import Request
     from google_auth_oauthlib.flow import InstalledAppFlow
     from googleapiclient.discovery import build
+    from google.oauth2.credentials import Credentials
     GOOGLE_LIBRARIES_AVAILABLE = True
 except ImportError:
     GOOGLE_LIBRARIES_AVAILABLE = False
@@ -41,30 +42,38 @@ class GmailIntegrator:
         """Authenticate with Gmail API using OAuth2"""
         creds = None
         
-        # Load existing token
+        # Load existing token (JSON format from OAuth callback)
         if os.path.exists(self.token_file):
-            with open(self.token_file, 'rb') as token:
-                creds = pickle.load(token)
+            try:
+                with open(self.token_file, 'r') as token:
+                    creds_data = json.load(token)
+                creds = Credentials.from_authorized_user_info(creds_data)
+            except Exception as e:
+                print(f"⚠️ Error loading token: {e}")
+                creds = None
         
         # If no valid credentials, get new ones
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
                 creds.refresh(Request())
+                # Save refreshed credentials
+                with open(self.token_file, 'w') as token:
+                    token.write(creds.to_json())
             else:
                 if not os.path.exists(self.credentials_file):
                     raise FileNotFoundError(
                         f"Gmail credentials file '{self.credentials_file}' not found. "
-                        "Download from Google Cloud Console."
+                        "Please authenticate via /auth/google endpoint."
                     )
                 
                 flow = InstalledAppFlow.from_client_secrets_file(
                     self.credentials_file, self.SCOPES
                 )
                 creds = flow.run_local_server(port=0)
-            
-            # Save credentials for next run
-            with open(self.token_file, 'wb') as token:
-                pickle.dump(creds, token)
+                
+                # Save credentials as JSON
+                with open(self.token_file, 'w') as token:
+                    token.write(creds.to_json())
         
         # Build Gmail service
         self.service = build('gmail', 'v1', credentials=creds)

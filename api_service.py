@@ -36,8 +36,12 @@ app.secret_key = os.environ.get('SECRET_KEY') or os.urandom(24)
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
 
-# Enable CORS with credentials
-CORS(app, origins=["http://localhost:3000"], supports_credentials=True)
+# Enable CORS with credentials and explicit methods
+CORS(app, 
+     origins=["http://localhost:3000", "http://localhost:5173"], 
+     supports_credentials=True,
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+     allow_headers=["Content-Type", "Authorization"])
 
 # Google OAuth Configuration (Manual - No Authlib!)
 GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
@@ -64,6 +68,17 @@ def init_system():
     except Exception as e:
         print(f"❌ System initialization failed: {e}")
         return False
+
+@app.after_request
+def after_request(response):
+    """Ensure CORS headers are set on all responses"""
+    origin = request.headers.get('Origin')
+    if origin in ["http://localhost:3000", "http://localhost:5173"]:
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    return response
 
 @app.route('/auth/google')
 def google_login():
@@ -310,12 +325,50 @@ def scan_emails():
         )
         print(f"✅ Successfully processed {len(results)} emails from Gmail")
         
-        # Format results for API response
+        # Format results for API response (filter out duplicates, rejected items, and no-deadline emails)
         formatted_results = []
+        skipped_count = 0
+        expired_count = 0
+        duplicate_count = 0
+        
+        # Load existing calendar events once for duplicate detection
+        existing_titles = _get_existing_calendar_events()
+        
         for result in results:
             email_data = result.get('email_data', {})
             classification = result.get('classification', {})
             deadline_info = result.get('deadline_info', {})
+            calendar_event = result.get('calendar_event')
+            
+            # Skip emails without deadlines
+            if not deadline_info or not deadline_info.get('has_deadline'):
+                skipped_count += 1
+                continue
+            
+            # Skip expired deadlines (past dates)
+            deadline_date = deadline_info.get('deadline_date')
+            if not _is_future_deadline(deadline_date):
+                print(f"⏭️ Skipping expired deadline for: {email_data.get('subject', '')[:50]}...")
+                expired_count += 1
+                skipped_count += 1
+                continue
+            
+            # Skip duplicates already in Google Calendar
+            subject = email_data.get('subject', '').strip().lower()
+            # Check if subject contains any existing calendar event title
+            is_duplicate = any(subject in existing or existing in subject for existing in existing_titles)
+            if is_duplicate:
+                print(f"🔄 Skipping duplicate (already in calendar): {email_data.get('subject', '')[:50]}...")
+                duplicate_count += 1
+                skipped_count += 1
+                continue
+            
+            # Skip emails with duplicate or rejected calendar events (from processing)
+            if calendar_event:
+                status = calendar_event.get('status')
+                if status in ['duplicate', 'rejected']:
+                    skipped_count += 1
+                    continue
             
             formatted_result = {
                 "email_id": email_data.get('id', 'sample_' + str(len(formatted_results))),
@@ -349,6 +402,12 @@ def scan_emails():
             
             formatted_results.append(formatted_result)
         
+        print(f"📊 Filtering summary:")
+        print(f"   ⏭️  Expired deadlines: {expired_count}")
+        print(f"   🔄 Duplicates (in calendar): {duplicate_count}")
+        print(f"   ❌ Total filtered: {skipped_count}")
+        print(f"   ✅ New reminders to show: {len(formatted_results)}")
+        
         # Calculate summary statistics
         total_emails = len(formatted_results)
         job_related_count = sum(1 for r in formatted_results if r['classification']['is_job_related'])
@@ -359,9 +418,13 @@ def scan_emails():
             "scan_timestamp": datetime.now().isoformat(),
             "user_id": user_id,
             "summary": {
+                "total_emails_scanned": len(results),
                 "total_emails": total_emails,
                 "job_related_emails": job_related_count,
                 "emails_with_deadlines": deadline_count,
+                "expired_filtered": expired_count,
+                "duplicates_filtered": duplicate_count,
+                "total_filtered": skipped_count,
                 "scan_parameters": {
                     "max_emails": max_emails,
                     "days_back": days_back,
@@ -444,6 +507,10 @@ def create_calendar_reminders():
             
             created_events = []
             failed_events = []
+            skipped_events = []
+            duplicate_events = []
+            
+            print(f"📅 Processing {len(emails)} emails for calendar sync...")
             
             for email in emails:
                 try:
@@ -451,12 +518,60 @@ def create_calendar_reminders():
                     subject = email.get('subject', 'Job Deadline')
                     deadline = email.get('deadline', {})
                     
+                    print(f"  📧 Processing: {subject}")
+                    print(f"     Deadline: {deadline}")
+                    
                     if not deadline.get('has_deadline'):
+                        print(f"     ⏭️ Skipped: No deadline found")
+                        skipped_events.append({"email_id": email_id, "reason": "no_deadline"})
                         continue
                     
                     # Parse deadline date/time (handle timezone properly)
                     deadline_date = deadline.get('date')
-                    deadline_time = deadline.get('time', '23:59:00')
+                    deadline_time = deadline.get('time')
+                    
+                    # Check for duplicates before creating event
+                    if deadline_date:
+                        from datetime import timedelta
+                        try:
+                            deadline_dt_check = dt.fromisoformat(deadline_date)
+                            time_min = (deadline_dt_check - timedelta(days=1)).isoformat() + 'Z'
+                            time_max = (deadline_dt_check + timedelta(days=1)).isoformat() + 'Z'
+                            
+                            # Check existing events
+                            existing_events = calendar_service.events().list(
+                                calendarId='primary',
+                                timeMin=time_min,
+                                timeMax=time_max,
+                                singleEvents=True
+                            ).execute().get('items', [])
+                            
+                            # Simple duplicate check
+                            subject_words = set(subject.lower().split())
+                            is_duplicate = False
+                            for existing in existing_events:
+                                existing_title = existing.get('summary', '').lower()
+                                existing_words = set(existing_title.split())
+                                common = subject_words.intersection(existing_words)
+                                
+                                if len(common) >= len(subject_words) * 0.7:
+                                    print(f"     🔄 Duplicate found: {existing.get('summary')}")
+                                    duplicate_events.append({
+                                        "email_id": email_id,
+                                        "existing_event_id": existing['id'],
+                                        "reason": "similar_event_exists"
+                                    })
+                                    is_duplicate = True
+                                    break
+                            
+                            if is_duplicate:
+                                continue
+                        except Exception as e:
+                            print(f"     ⚠️ Error checking duplicates: {e}")
+                    
+                    # Handle None or missing time - default to 11:59 PM
+                    if not deadline_time or deadline_time == 'None':
+                        deadline_time = '23:59:00'
                     
                     # Combine date and time, treat as local timezone
                     from datetime import datetime as dt
@@ -504,18 +619,31 @@ def create_calendar_reminders():
                     })
                     
                     print(f"✅ Created Google Calendar event: {subject}")
+                    print(f"   📍 Event ID: {event['id']}")
+                    print(f"   🔗 Link: {event.get('htmlLink')}")
                     
                 except Exception as e:
                     print(f"❌ Failed to create event for {email.get('subject')}: {e}")
-                    failed_events.append(email_id)
+                    import traceback
+                    traceback.print_exc()
+                    failed_events.append({"email_id": email_id, "error": str(e)})
+            
+            print(f"\n📊 Calendar Sync Summary:")
+            print(f"   ✅ Created: {len(created_events)}")
+            print(f"   🔄 Duplicates: {len(duplicate_events)}")
+            print(f"   ❌ Failed: {len(failed_events)}")
+            print(f"   ⏭️ Skipped: {len(skipped_events)}")
             
             return jsonify({
                 "success": True,
                 "user_id": user_id,
                 "created_events": created_events,
+                "duplicate_events": duplicate_events,
                 "summary": {
                     "total_events_created": len(created_events),
+                    "duplicate_events": len(duplicate_events),
                     "failed_events": len(failed_events),
+                    "skipped_events": len(skipped_events),
                     "synced_to_google_calendar": True
                 }
             })
@@ -548,6 +676,106 @@ def create_calendar_reminders():
         
     except Exception as e:
         print(f"❌ Error creating calendar reminders: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }), 500
+
+@app.route('/api/calendar/reminders/<event_id>', methods=['DELETE', 'OPTIONS'])
+def delete_calendar_reminder(event_id):
+    """
+    Delete a calendar reminder from Google Calendar and backend state.
+    Handles CORS preflight OPTIONS requests properly.
+    
+    Path parameter:
+    - event_id: Google Calendar event ID
+    
+    Query parameter:
+    - user_id: User identifier
+    """
+    # ✅ Handle CORS preflight first
+    if request.method == 'OPTIONS':
+        print(f"✓ OPTIONS preflight for event_id: {event_id}")
+        response = jsonify({"status": "CORS preflight OK"})
+        response.headers.add("Access-Control-Allow-Origin", request.headers.get('Origin', '*'))
+        response.headers.add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+        response.headers.add("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        response.headers.add("Access-Control-Allow-Credentials", "true")
+        return response, 204
+    
+    try:
+        from googleapiclient.discovery import build
+        from google.auth.transport.requests import Request
+        from googleapiclient.errors import HttpError
+        
+        user_id = request.args.get('user_id')
+        print(f"🗑️  DELETE request - event_id: {event_id}, user_id: {user_id}")
+        
+        if not user_id:
+            return jsonify({
+                "success": False,
+                "error": "user_id is required"
+            }), 400
+        
+        if not event_id:
+            return jsonify({
+                "success": False,
+                "error": "event_id is required"
+            }), 400
+        
+        # Load calendar credentials
+        try:
+            with open('calendar_token.json', 'r') as f:
+                creds_data = json.load(f)
+            credentials = Credentials.from_authorized_user_info(creds_data)
+            
+            # Refresh token if expired
+            if credentials.expired and credentials.refresh_token:
+                credentials.refresh(Request())
+            
+            # Build Calendar API service
+            calendar_service = build('calendar', 'v3', credentials=credentials)
+            
+            # Try deleting the event from Google Calendar
+            try:
+                calendar_service.events().delete(
+                    calendarId='primary',
+                    eventId=event_id
+                ).execute()
+                
+                print(f"✅ Deleted calendar event: {event_id}")
+                
+                return jsonify({
+                    "success": True,
+                    "message": "Reminder deleted successfully from Google Calendar",
+                    "event_id": event_id
+                }), 200
+                
+            except HttpError as e:
+                if e.resp.status == 404:
+                    # Event already deleted or not found
+                    print(f"⚠️ Event not found in Google Calendar: {event_id}")
+                    return jsonify({
+                        "success": True,
+                        "message": "Event not found (already deleted)",
+                        "event_id": event_id
+                    }), 200
+                else:
+                    raise e
+        
+        except FileNotFoundError:
+            print("⚠️ No calendar credentials found - cannot delete remotely")
+            return jsonify({
+                "success": False,
+                "error": "Calendar credentials not found",
+                "note": "Event not deleted remotely, may still exist in UI"
+            }), 404
+        
+    except Exception as e:
+        print(f"❌ Error deleting event: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({
@@ -612,13 +840,39 @@ def get_upcoming_reminders():
             for event in events:
                 start = event['start'].get('dateTime', event['start'].get('date'))
                 
+                # Calculate days until deadline
+                try:
+                    event_date = datetime.fromisoformat(start.replace('Z', '+00:00'))
+                    days_until = (event_date - datetime.now()).days
+                except:
+                    days_until = 0
+                
+                # Determine urgency based on days until
+                if days_until <= 3:
+                    urgency = "high"
+                elif days_until <= 7:
+                    urgency = "medium"
+                else:
+                    urgency = "low"
+                
+                # Parse deadline type from title if present
+                title_lower = event.get('summary', '').lower()
+                if 'interview' in title_lower:
+                    deadline_type = 'interview'
+                elif 'assessment' in title_lower or 'coding' in title_lower:
+                    deadline_type = 'assessment'
+                elif 'application' in title_lower:
+                    deadline_type = 'application'
+                else:
+                    deadline_type = 'other'
+                
                 upcoming_events.append({
                     "event_id": event['id'],
                     "title": event.get('summary', 'No Title'),
                     "start_time": start,
-                    "deadline_type": "application",  # Parse from title if needed
-                    "urgency": "medium",  # Calculate based on days until
-                    "days_until": (datetime.fromisoformat(start.replace('Z', '+00:00')) - datetime.now()).days,
+                    "deadline_type": deadline_type,
+                    "urgency": urgency,
+                    "days_until": days_until,
                     "calendar_link": event.get('htmlLink'),
                     "description": event.get('description', '')
                 })
@@ -744,36 +998,9 @@ def get_dashboard_analytics():
                 "error": "user_id is required"
             }), 400
         
-        # Sample analytics data
+        # TODO: Implement analytics data collection
         analytics_data = {
-            "period": period,
-            "job_application_stats": {
-                "total_opportunities_found": 15,
-                "applications_submitted": 8,
-                "interviews_scheduled": 3,
-                "assessments_completed": 5,
-                "deadlines_missed": 1,
-                "response_rate": 53.3
-            },
-            "email_processing_stats": {
-                "total_emails_processed": 240,
-                "job_related_emails": 35,
-                "job_related_percentage": 14.6,
-                "deadlines_extracted": 22,
-                "calendar_events_created": 18
-            },
-            "deadline_management": {
-                "upcoming_deadlines": 6,
-                "overdue_deadlines": 1,
-                "completed_deadlines": 12,
-                "average_notice_days": 8.5
-            },
-            "category_breakdown": {
-                "applications": 45,
-                "interviews": 20,
-                "assessments": 25,
-                "networking": 10
-            }
+            "placeholder": "Analytics implementation pending"
         }
         
         return jsonify({
@@ -790,12 +1017,71 @@ def get_dashboard_analytics():
             "traceback": traceback.format_exc()
         }), 500
 
+def _is_future_deadline(deadline_date: str) -> bool:
+    """Check if deadline is today or in the future"""
+    if not deadline_date:
+        return False
+    try:
+        deadline = datetime.fromisoformat(deadline_date.replace('Z', '+00:00'))
+        return deadline.date() >= datetime.now().date()
+    except Exception as e:
+        print(f"⚠️ Error checking deadline date: {e}")
+        return False
+
+def _get_existing_calendar_events():
+    """Load all existing 'Job Deadline' events from Google Calendar to detect duplicates"""
+    from googleapiclient.discovery import build
+    from google.auth.transport.requests import Request
+    from datetime import timedelta
+    
+    try:
+        # Load calendar credentials
+        with open('calendar_token.json', 'r') as f:
+            creds_data = json.load(f)
+        credentials = Credentials.from_authorized_user_info(creds_data)
+        
+        # Refresh token if expired
+        if credentials.expired and credentials.refresh_token:
+            credentials.refresh(Request())
+        
+        # Build Calendar API service
+        service = build('calendar', 'v3', credentials=credentials)
+        
+        # Query for existing events in the next year
+        now = datetime.utcnow().isoformat() + 'Z'
+        end = (datetime.utcnow() + timedelta(days=365)).isoformat() + 'Z'
+        
+        results = service.events().list(
+            calendarId='primary',
+            timeMin=now,
+            timeMax=end,
+            singleEvents=True,
+            orderBy='startTime',
+            q='Job Deadline'  # Search for events with this text
+        ).execute()
+        
+        # Extract and normalize event summaries for comparison
+        existing_titles = set()
+        for event in results.get('items', []):
+            summary = event.get('summary', '')
+            if summary:
+                existing_titles.add(summary.strip().lower())
+        
+        print(f"📅 Found {len(existing_titles)} existing calendar events")
+        return existing_titles
+        
+    except FileNotFoundError:
+        print("⚠️ calendar_token.json not found - skipping duplicate check")
+        return set()
+    except Exception as e:
+        print(f"⚠️ Calendar duplicate check failed: {e}")
+        return set()
+
 def _calculate_urgency_days(deadline_date):
     """Calculate days until deadline for urgency calculation"""
     if not deadline_date:
         return None
     try:
-        from datetime import datetime
         deadline = datetime.fromisoformat(deadline_date.replace('Z', '+00:00'))
         now = datetime.now()
         delta = deadline - now

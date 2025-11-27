@@ -208,13 +208,14 @@ class CalendarIntegrator:
                 'title': 'Email Reminder System',
                 'url': f"mailto:{sender}"
             },
-            # Add email metadata as extended properties
+            # Add email metadata as extended properties for duplicate detection
             'extendedProperties': {
                 'private': {
                     'email_id': email_data.get('id', ''),
                     'deadline_type': deadline_type,
                     'created_by': 'email_reminder_system',
-                    'original_sender': sender
+                    'original_sender': sender,
+                    'processed_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 }
             }
         }

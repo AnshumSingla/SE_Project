@@ -6,6 +6,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000
 const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000,
+  withCredentials: true, // ✅ Enable credentials for CORS
   headers: {
     'Content-Type': 'application/json',
   },
@@ -98,6 +99,20 @@ export const apiService = {
       return response.data
     } catch (error) {
       throw new Error(error.response?.data?.error || 'Failed to get upcoming deadlines')
+    }
+  },
+
+  // Delete calendar reminder
+  deleteReminder: async (userId, eventId) => {
+    try {
+      const response = await api.delete(`/api/calendar/reminders/${eventId}`, {
+        params: {
+          user_id: userId
+        }
+      })
+      return response.data
+    } catch (error) {
+      throw new Error(error.response?.data?.error || 'Failed to delete reminder')
     }
   },
 

@@ -15,24 +15,26 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }) => {
   const navigate = useNavigate()
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
+  // Initialize user from localStorage immediately to prevent flash
+  const [user, setUser] = useState(() => {
+    try {
+      const storedUser = localStorage.getItem('jobReminderUser')
+      if (storedUser) {
+        const parsedUser = JSON.parse(storedUser)
+        console.log('🔍 AuthContext: User loaded from localStorage on init:', parsedUser.email)
+        return parsedUser
+      }
+    } catch (error) {
+      console.error('❌ Error parsing stored user data:', error)
+      localStorage.removeItem('jobReminderUser')
+    }
+    return null
+  })
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    // Check for stored user data on app load
-    const storedUser = localStorage.getItem('jobReminderUser')
-    console.log('🔍 AuthContext: Checking stored user...', storedUser ? 'Found' : 'None')
-    if (storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser)
-        console.log('✅ AuthContext: User loaded from localStorage:', parsedUser.email)
-        setUser(parsedUser)
-      } catch (error) {
-        console.error('❌ Error parsing stored user data:', error)
-        localStorage.removeItem('jobReminderUser')
-      }
-    }
-    setLoading(false)
+    // Additional check on mount (already handled in useState initializer)
+    console.log('✅ AuthContext mounted, user:', user?.email || 'None')
   }, [])
 
   const login = async (credentialResponse) => {

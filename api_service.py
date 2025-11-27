@@ -92,12 +92,27 @@ def after_request(response):
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
     return response
 
+@app.route('/debug/config')
+def debug_config():
+    """Debug endpoint to check environment variables"""
+    return jsonify({
+        'BACKEND_URL': os.environ.get('BACKEND_URL', 'NOT SET - using default'),
+        'REDIRECT_URI': REDIRECT_URI,
+        'FRONTEND_URL': os.environ.get('FRONTEND_URL', 'NOT SET'),
+        'ALLOWED_ORIGINS': ALLOWED_ORIGINS,
+        'GOOGLE_CLIENT_ID': os.environ.get('GOOGLE_CLIENT_ID', 'NOT SET')[:20] + '...' if os.environ.get('GOOGLE_CLIENT_ID') else 'NOT SET'
+    })
+
 @app.route('/auth/google')
 def google_login():
     """Initiate Google OAuth flow - Manual implementation (no Authlib!)"""
     # Generate state for CSRF protection
     state = secrets.token_urlsafe(32)
     session['oauth_state'] = state
+    
+    # Debug log
+    print(f"🔍 BACKEND_URL from env: {os.environ.get('BACKEND_URL', 'NOT SET')}")
+    print(f"🔗 Using REDIRECT_URI: {REDIRECT_URI}")
     
     # Build authorization URL manually
     params = {

@@ -26,126 +26,123 @@ const HomePage = () => {
   const [selectedDate, setSelectedDate] = useState(new Date())
 
   useEffect(() => {
-    loadEvents()
+    if (user) initializeSync()
   }, [user])
 
-  const loadEvents = async () => {
-    if (!user) return
-    
+  const initializeSync = async () => {
+    setLoading(true)
     try {
-      setLoading(true)
-      const response = await apiService.getUpcomingDeadlines(user.id)
-      
-      if (response.success) {
-        const now = new Date()
-        const formattedEvents = response.upcoming_events
-          .map(event => ({
-            id: event.event_id,
-            title: event.title,
-            start: new Date(event.start_time),
-            end: new Date(event.start_time),
-            resource: {
-              type: event.deadline_type,
-              urgency: event.urgency,
-              originalEmail: event.original_email,
-              daysUntil: event.days_until
-            }
-          }))
-          .filter(event => event.start > now) // Only keep future events
-        setEvents(formattedEvents)
+      // 1️⃣ Load all existing reminders from Google Calendar
+      const calendarResponse = await apiService.getUpcomingDeadlines(user.id)
+      const now = new Date()
+      const existingEvents = calendarResponse.success
+        ? calendarResponse.upcoming_events
+            .map(event => ({
+              id: event.event_id,
+              title: event.title.trim(),
+              start: new Date(event.start_time),
+              end: new Date(event.start_time),
+              resource: {
+                type: event.deadline_type,
+                urgency: event.urgency,
+                originalEmail: event.original_email,
+                daysUntil: event.days_until
+              }
+            }))
+            .filter(e => e.start >= now)
+        : []
+
+      setEvents(existingEvents)
+      console.log(`✅ Loaded ${existingEvents.length} existing Google Calendar reminders.`)
+
+      // 2️⃣ Automatically scan Gmail for new deadlines
+      toast.loading('Syncing latest emails...')
+      const scanResults = await apiService.scanEmails(user.id)
+
+      if (!scanResults.success) {
+        toast.dismiss()
+        toast.error('Failed to scan Gmail for new deadlines')
+        setLoading(false)
+        return
       }
-    } catch (error) {
-      console.error('Error loading events:', error)
-      toast.error('Failed to load calendar events')
+
+      // 3️⃣ Filter out expired and duplicate deadlines
+      const futureEmails = scanResults.emails.filter(email => {
+        if (!email.deadline?.has_deadline || !email.deadline?.date) return false
+        const date = new Date(email.deadline.date)
+        return date >= now
+      })
+
+      // 4️⃣ Identify new reminders not already on the calendar
+      const existingTitles = new Set(existingEvents.map(e => e.title.toLowerCase().replace(/📧\s*/g, '')))
+      const newDeadlines = futureEmails.filter(email => {
+        const normalizedTitle = email.subject.toLowerCase().trim()
+        return !Array.from(existingTitles).some(title => 
+          title.includes(normalizedTitle) || normalizedTitle.includes(title)
+        )
+      })
+
+      console.log(`📬 Found ${newDeadlines.length} new deadlines not in Google Calendar.`)
+
+      if (newDeadlines.length === 0) {
+        toast.dismiss()
+        toast.success('All reminders are already synced 🎉')
+        setLoading(false)
+        return
+      }
+
+      // 5️⃣ Create new events on Google Calendar
+      await apiService.createCalendarReminders(user.id, newDeadlines, {
+        default_reminders: getReminderTimes(reminderFrequency),
+        urgent_reminders: [10080, 1440, 60]
+      })
+
+      // 6️⃣ Add to local state
+      const newEvents = newDeadlines.map(email => {
+        const dateStr = email.deadline.date
+        const timeStr = email.deadline.time || '23:59:00'
+        const deadlineDate = new Date(`${dateStr}T${timeStr}`)
+        return {
+          id: email.email_id,
+          title: `📧 ${email.subject}`,
+          start: deadlineDate,
+          end: deadlineDate,
+          resource: {
+            type: email.deadline.type || 'application',
+            urgency: email.classification.urgency || 'medium',
+            originalEmail: {
+              subject: email.subject,
+              sender: email.sender,
+              snippet: email.snippet
+            },
+            daysUntil: email.deadline.urgency_days || 0
+          }
+        }
+      })
+
+      setEvents(prev => {
+        const all = [...prev, ...newEvents]
+        const unique = all.filter(
+          (e, i, arr) =>
+            i === arr.findIndex(x => x.title === e.title && x.start.getTime() === e.start.getTime())
+        )
+        return unique.filter(e => e.start >= now)
+      })
+
+      toast.dismiss()
+      toast.success(`Synced ${newDeadlines.length} new deadlines to calendar! 📅`)
+    } catch (err) {
+      console.error('❌ Error syncing reminders:', err)
+      toast.dismiss()
+      toast.error('Failed to sync reminders')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleEmailScanComplete = async (scanResults) => {
-    if (scanResults.success) {
-      const jobEmails = scanResults.summary.job_related_emails
-      const newRemindersReady = scanResults.summary.new_reminders_ready || scanResults.summary.valid_future_deadlines || 0
-      const duplicatesFiltered = scanResults.summary.duplicates_filtered || 0
-      const expiredFiltered = scanResults.summary.expired_filtered || 0
-      const totalFiltered = scanResults.summary.total_filtered || 0
-      
-      let message = `Found ${jobEmails} job-related emails with ${newRemindersReady} new deadlines!`
-      if (totalFiltered > 0) {
-        const filterDetails = []
-        if (duplicatesFiltered > 0) filterDetails.push(`${duplicatesFiltered} duplicates`)
-        if (expiredFiltered > 0) filterDetails.push(`${expiredFiltered} expired`)
-        if (filterDetails.length > 0) {
-          message += ` (${filterDetails.join(', ')} filtered)`
-        }
-      }
-      toast.success(message)
-      
-      // Convert scanned emails with deadlines to calendar events
-      const emailsWithDeadlines = scanResults.emails.filter(email => email.deadline.has_deadline)
-      
-      if (emailsWithDeadlines.length > 0) {
-        try {
-          // Create backend reminders with full email data for Google Calendar sync
-          await apiService.createCalendarReminders(
-            user.id, 
-            emailsWithDeadlines, // Pass full email objects, not just IDs
-            {
-              default_reminders: getReminderTimes(reminderFrequency),
-              urgent_reminders: [10080, 1440, 60, 15]
-            }
-          )
-          
-          // Add events to calendar UI immediately
-          const newEvents = emailsWithDeadlines.map(email => {
-            // Parse deadline date/time properly without timezone conversion
-            let deadlineDate
-            if (email.deadline.date) {
-              const dateStr = email.deadline.date
-              const timeStr = email.deadline.time || '23:59:00'
-              // Parse as local time, not UTC
-              deadlineDate = new Date(`${dateStr}T${timeStr}`)
-            } else {
-              deadlineDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // Default 7 days from now
-            }
-            
-            return {
-              id: email.email_id,
-              title: `📧 ${email.subject}`,
-              start: deadlineDate,
-              end: deadlineDate,
-              resource: {
-                type: email.deadline.type || 'application',
-                urgency: email.classification.urgency || 'medium',
-                originalEmail: {
-                  subject: email.subject,
-                  sender: email.sender,
-                  snippet: email.snippet
-                },
-                daysUntil: email.deadline.urgency_days || 0,
-                description: email.deadline.description || email.snippet
-              }
-            }
-          })
-          
-          // Merge new events with existing events (avoid duplicates)
-          setEvents(prev => {
-            const existingIds = new Set(prev.map(e => e.id))
-            const uniqueNewEvents = newEvents.filter(e => !existingIds.has(e.id))
-            return [...prev, ...uniqueNewEvents]
-          })
-          
-          toast.success(`Added ${newEvents.length} deadlines to your calendar! 📅`)
-        } catch (error) {
-          console.error('Error creating reminders:', error)
-          toast.error('Failed to create calendar reminders')
-        }
-      } else {
-        toast.info('No deadlines found in job-related emails')
-      }
-    } else {
-      toast.error('Email scan failed')
-    }
+  const handleEmailScanComplete = async () => {
+    // Just trigger the sync flow again when user manually clicks scan
+    await initializeSync()
   }
 
   const handleDeleteEvent = async (eventId, eventTitle) => {

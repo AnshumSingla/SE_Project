@@ -369,19 +369,36 @@ def scan_emails():
         print(f"🔍 Scanning emails for user: {user_id}")
         print(f"📧 Access token provided: {'Yes' if access_token else 'No'}")
         
-        # Check for credentials in session
+        # Try to get credentials from session first
         credentials = get_credentials_from_session()
+        
+        # If no session credentials, try to use access token from request
+        if not credentials and access_token and access_token != 'demo_token_for_testing':
+            print(f"🔑 No session credentials, attempting to use access token from request")
+            try:
+                # Reconstruct credentials from access token
+                from google.oauth2.credentials import Credentials
+                credentials = Credentials(
+                    token=access_token,
+                    client_id=os.environ.get('GOOGLE_CLIENT_ID'),
+                    client_secret=os.environ.get('GOOGLE_CLIENT_SECRET'),
+                    token_uri='https://oauth2.googleapis.com/token',
+                    scopes=SCOPES
+                )
+                print(f"✅ Reconstructed credentials from access token")
+            except Exception as e:
+                print(f"❌ Failed to reconstruct credentials: {e}")
+                credentials = None
+        
         if not credentials:
-            print("⚠️ No credentials in session - Gmail authentication required")
+            print("⚠️ No valid credentials available - Gmail authentication required")
             return jsonify({
                 "success": False,
                 "error": "Gmail authentication required",
                 "message": "Please sign in with Google to scan your emails"
             }), 401
         
-        print(f"✅ Valid credentials found in session")
-        if access_token and access_token != 'demo_token_for_testing':
-            print(f"🔑 Real Gmail access token detected (length: {len(access_token)})")
+        print(f"✅ Valid credentials available")
         
         # Process emails using the system
         if not email_system:

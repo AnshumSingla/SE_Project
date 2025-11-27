@@ -41,25 +41,6 @@ export const AuthProvider = ({ children }) => {
     try {
       setLoading(true)
       
-      // Handle demo mode
-      if (credentialResponse.credential === "demo_token_for_testing") {
-        const userData = {
-          id: 'demo_user_123',
-          email: 'demo@jobreminder.com',
-          name: 'Demo User',
-          picture: 'https://via.placeholder.com/96x96/00FFFF/1A1A1A?text=Demo',
-          token: 'demo_token_for_testing',
-          loginTime: new Date().toISOString(),
-          isDemoMode: true
-        }
-        
-        setUser(userData)
-        localStorage.setItem('jobReminderUser', JSON.stringify(userData))
-        toast.success(`Welcome to Demo Mode! 🚀`)
-        navigate('/dashboard')
-        return
-      }
-      
       // Handle server-side OAuth
       if (credentialResponse.credential === "server_auth_token") {
         const userInfo = credentialResponse.userInfo || {}

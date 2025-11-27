@@ -64,22 +64,8 @@ const LandingPage = () => {
   }
 
   const handleGoogleError = () => {
-    console.error('Google Login Failed - Redirect URI Mismatch')
-    console.log('🔧 To fix this OAuth error:')
-    console.log('1. Go to: https://console.cloud.google.com/apis/credentials')
-    console.log('2. Edit your OAuth Client ID')
-    console.log('3. Add http://localhost:3000 to Authorized JavaScript Origins')
-    console.log('4. Add http://localhost:3000 to Authorized Redirect URIs')
-    console.log('5. Save and wait 5 minutes')
-    console.log('📱 For now, use Demo Mode to test the system!')
-  }
-
-  const handleDemoLogin = () => {
-    // Create a demo user for testing
-    const demoCredentials = {
-      credential: "demo_token_for_testing"
-    }
-    login(demoCredentials)
+    console.error('Google Login Failed')
+    alert('Google authentication failed. Please try again.')
   }
 
   const features = [
@@ -185,13 +171,9 @@ const LandingPage = () => {
                       <h3 className="text-lg font-semibold text-text-primary mb-2">
                         Get Started in Seconds
                       </h3>
-                      <p className="text-text-secondary text-sm mb-2">
+                      <p className="text-text-secondary text-sm">
                         Sign in with Google to access your personalized dashboard
                       </p>
-                      <div className="text-xs text-yellow-400 bg-yellow-400/10 border border-yellow-400/30 rounded-md p-2">
-                        ⚠️ OAuth setup required in Google Cloud Console<br/>
-                        Use Demo Mode below to test immediately!
-                      </div>
                     </div>
                     
                     <button
@@ -206,26 +188,6 @@ const LandingPage = () => {
                       </svg>
                       <span>Sign in with Google</span>
                     </button>
-                    
-                    <div className="mt-4 text-center">
-                      <div className="flex items-center my-4">
-                        <div className="flex-1 border-t border-gray-600"></div>
-                        <span className="px-3 text-gray-400 text-sm">or</span>
-                        <div className="flex-1 border-t border-gray-600"></div>
-                      </div>
-                      
-                      <button
-                        onClick={handleDemoLogin}
-                        className="w-full bg-gradient-to-r from-primary-500 to-accent-500 hover:from-primary-600 hover:to-accent-600 text-dark-500 py-3 px-6 rounded-lg transition-all duration-300 font-bold shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
-                      >
-                        🚀 Enter Demo Mode - Skip OAuth Setup
-                      </button>
-                      <p className="text-xs text-text-secondary mt-2 text-center">
-                        Full system experience with realistic job emails
-                        <br />
-                        <span className="text-primary-400">No Google setup required!</span>
-                      </p>
-                    </div>
                   </div>
                 </div>
               </motion.div>

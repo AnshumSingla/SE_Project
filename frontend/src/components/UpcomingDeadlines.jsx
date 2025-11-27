@@ -86,7 +86,7 @@ const UpcomingDeadlines = ({ events, onDeleteEvent }) => {
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.4, delay: index * 0.1 }}
-            whileHover={{ scale: 1.02, x: 5 }}
+            whileHover={{ scale: 1.02, x: 5, transition: { duration: 0.2 } }}
             className="bg-dark-300/30 border border-primary-500/20 rounded-lg p-4 hover:border-primary-500/40 transition-all duration-300"
           >
             <div className="flex items-start justify-between">
@@ -136,6 +136,7 @@ const UpcomingDeadlines = ({ events, onDeleteEvent }) => {
                 </div>
                 <motion.button
                   whileHover={{ scale: 1.1 }}
+                  transition={{ duration: 0.15 }}
                   whileTap={{ scale: 0.9 }}
                   onClick={() => onDeleteEvent(event.id, event.title)}
                   className="p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-colors group"

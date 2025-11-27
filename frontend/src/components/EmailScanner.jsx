@@ -54,6 +54,7 @@ const EmailScanner = ({ onScanComplete, userId }) => {
       <div className="space-y-4">
         <motion.button
           whileHover={{ scale: 1.05 }}
+          transition={{ duration: 0.15 }}
           whileTap={{ scale: 0.95 }}
           onClick={handleScanEmails}
           disabled={isScanning}

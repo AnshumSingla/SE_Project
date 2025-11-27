@@ -225,28 +225,6 @@ const LandingPage = () => {
                 </motion.div>
               ))}
 
-              {/* Stats */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 0.9 }}
-                className="glass-card p-6 rounded-xl mt-8"
-              >
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div>
-                    <div className="text-2xl font-bold text-primary-500">99%</div>
-                    <div className="text-sm text-text-secondary">Accuracy Rate</div>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-primary-500">24/7</div>
-                    <div className="text-sm text-text-secondary">Monitoring</div>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-primary-500">∞</div>
-                    <div className="text-sm text-text-secondary">Deadlines Tracked</div>
-                  </div>
-                </div>
-              </motion.div>
             </motion.div>
           </div>
         </div>

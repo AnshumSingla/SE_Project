@@ -952,8 +952,7 @@ def get_upcoming_reminders():
                 timeMax=end_date,
                 maxResults=100,
                 singleEvents=True,
-                orderBy='startTime',
-                q='Job Deadline'  # Filter for job deadline events
+                orderBy='startTime'
             ).execute()
             
             events = events_result.get('items', [])

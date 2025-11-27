@@ -552,10 +552,16 @@ def create_calendar_reminders():
         try:
             credentials = get_credentials_from_session()
             if not credentials:
+                print("⚠️ No credentials in session - cannot sync to calendar")
                 return jsonify({
                     "success": False,
-                    "error": "Not authenticated. Please sign in with Google first."
-                }), 401
+                    "created": [],
+                    "failed": [],
+                    "skipped": [],
+                    "duplicates": [],
+                    "total_created": 0,
+                    "note": "Please sign in again to sync with Google Calendar"
+                }), 200
             
             # Refresh token if expired
             if credentials.expired and credentials.refresh_token:
@@ -790,10 +796,11 @@ def delete_calendar_reminder(event_id):
         try:
             credentials = get_credentials_from_session()
             if not credentials:
+                print("⚠️ No credentials in session - cannot delete calendar event")
                 return jsonify({
                     "success": False,
-                    "error": "Not authenticated. Please sign in with Google first."
-                }), 401
+                    "error": "Session expired. Please sign in again to manage calendar events."
+                }), 200
             
             # Refresh token if expired
             if credentials.expired and credentials.refresh_token:
@@ -867,6 +874,9 @@ def get_upcoming_reminders():
                 "error": "user_id is required"
             }), 400
         
+        print(f"📅 Fetching upcoming events for user: {user_id}")
+        print(f"🔍 Session credentials available: {session.get('credentials') is not None}")
+        
         # Fetch real upcoming events from Google Calendar
         try:
             from googleapiclient.discovery import build
@@ -874,10 +884,14 @@ def get_upcoming_reminders():
             
             credentials = get_credentials_from_session()
             if not credentials:
+                print("⚠️ No credentials in session - returning empty events list")
+                # Return empty list instead of 401 (session expired on Vercel)
                 return jsonify({
-                    "success": False,
-                    "error": "Not authenticated. Please sign in with Google first."
-                }), 401
+                    "success": True,
+                    "upcoming_events": [],
+                    "total_count": 0,
+                    "note": "Please sign in again to sync with Google Calendar"
+                }), 200
             
             # Refresh token if expired
             if credentials.expired and credentials.refresh_token:

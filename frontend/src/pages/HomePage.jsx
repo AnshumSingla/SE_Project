@@ -29,6 +29,7 @@ const HomePage = () => {
 
   const initializeSync = async () => {
     setLoading(true)
+
     try {
       // Check if we need to scan Gmail (once per day)
       const lastSync = localStorage.getItem('lastSync')
@@ -157,8 +158,125 @@ const HomePage = () => {
   }
 
   const handleEmailScanComplete = async () => {
-    // Just trigger the sync flow again when user manually clicks scan
-    await initializeSync()
+    // Force a fresh scan, bypassing the 24-hour check
+    await forceScan()
+  }
+
+  const forceScan = async () => {
+    setLoading(true)
+    
+    try {
+      // 1️⃣ Load all existing reminders from Google Calendar
+      const calendarResponse = await apiService.getUpcomingDeadlines(user.id)
+      const now = new Date()
+      const existingEvents = calendarResponse.success
+        ? calendarResponse.upcoming_events
+            .map(event => ({
+              id: event.event_id,
+              title: event.title.trim(),
+              start: new Date(event.start_time),
+              end: new Date(event.start_time),
+              resource: {
+                type: event.deadline_type,
+                urgency: event.urgency,
+                originalEmail: event.original_email,
+                daysUntil: event.days_until
+              }
+            }))
+            .filter(e => e.start >= now)
+        : []
+
+      setEvents(existingEvents)
+      console.log(`✅ Loaded ${existingEvents.length} existing Google Calendar reminders.`)
+
+      // 2️⃣ Force Gmail scan (bypass 24-hour check)
+      console.log('🔄 Force scanning Gmail for new emails...')
+      toast.loading('Scanning emails...')
+      const scanResults = await apiService.scanEmails(user.id)
+
+      if (!scanResults.success) {
+        toast.dismiss()
+        toast.error('Failed to scan Gmail for new deadlines')
+        setLoading(false)
+        return
+      }
+
+      // 3️⃣ Filter out expired and duplicate deadlines
+      const futureEmails = scanResults.emails.filter(email => {
+        if (!email.deadline?.has_deadline || !email.deadline?.date) return false
+        const date = new Date(email.deadline.date)
+        return date >= now
+      })
+
+      // 4️⃣ Identify new reminders not already on the calendar
+      const existingTitles = new Set(existingEvents.map(e => e.title.toLowerCase().replace(/📧\s*/g, '')))
+      const newDeadlines = futureEmails.filter(email => {
+        const normalizedTitle = email.subject.toLowerCase().trim()
+        return !Array.from(existingTitles).some(title => 
+          title.includes(normalizedTitle) || normalizedTitle.includes(title)
+        )
+      })
+
+      console.log(`📬 Found ${newDeadlines.length} new deadlines not in Google Calendar.`)
+
+      if (newDeadlines.length === 0) {
+        toast.dismiss()
+        toast.success('All reminders are already synced 🎉')
+        setLoading(false)
+        return
+      }
+
+      // 5️⃣ Create new events on Google Calendar
+      await apiService.createCalendarReminders(user.id, newDeadlines, {
+        default_reminders: [10080, 1440], // 1 week and 1 day before
+        urgent_reminders: [10080, 1440, 60]
+      })
+
+      // 6️⃣ Add to local state
+      const newEvents = newDeadlines.map(email => {
+        const dateStr = email.deadline.date
+        const timeStr = email.deadline.time || '23:59:00'
+        const deadlineDate = new Date(`${dateStr}T${timeStr}`)
+        return {
+          id: email.email_id,
+          title: `📧 ${email.subject}`,
+          start: deadlineDate,
+          end: deadlineDate,
+          resource: {
+            type: email.deadline.type || 'application',
+            urgency: email.classification.urgency || 'medium',
+            originalEmail: {
+              subject: email.subject,
+              sender: email.sender,
+              snippet: email.snippet
+            },
+            daysUntil: email.deadline.urgency_days || 0
+          }
+        }
+      })
+
+      setEvents(prev => {
+        const all = [...prev, ...newEvents]
+        const unique = all.filter(
+          (e, i, arr) =>
+            i === arr.findIndex(x => x.title === e.title && x.start.getTime() === e.start.getTime())
+        )
+        return unique.filter(e => e.start >= now)
+      })
+
+      // Update last sync timestamp
+      const nowTimestamp = Date.now()
+      localStorage.setItem('lastSync', nowTimestamp.toString())
+
+      toast.dismiss()
+      toast.success(`Synced ${newDeadlines.length} new deadlines to calendar! 📅`)
+    } catch (err) {
+      console.error('❌ Error syncing reminders:', err)
+      toast.dismiss()
+      toast.error('Failed to sync reminders')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleDeleteEvent = async (eventId, eventTitle) => {

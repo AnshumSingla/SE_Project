@@ -73,6 +73,13 @@ SCOPES = [
 # Global system instance
 email_system = None
 
+def get_credentials_from_session():
+    """Get Google API credentials from session (Vercel-compatible)"""
+    credentials_dict = session.get('credentials')
+    if not credentials_dict:
+        return None
+    return Credentials.from_authorized_user_info(credentials_dict)
+
 def init_system():
     """Initialize the email reminder system"""
     global email_system
@@ -192,11 +199,9 @@ def google_callback():
         
         credentials = Credentials.from_authorized_user_info(credentials_dict)
         
-        # Save credentials to token files
-        with open('gmail_token.json', 'w') as f:
-            f.write(credentials.to_json())
-        with open('calendar_token.json', 'w') as f:
-            f.write(credentials.to_json())
+        # Store credentials in session (not on disk - Vercel filesystem is read-only)
+        session['credentials'] = credentials_dict
+        print("💾 Credentials stored in session (not writing to disk on Vercel)")
         
         # Extract user info
         email = user_info.get('email', '').replace('"', '&quot;')
@@ -521,15 +526,19 @@ def create_calendar_reminders():
                 "error": "user_id is required"
             }), 400
         
-        # Load calendar credentials
+        # Load calendar credentials from session (Vercel-compatible)
         try:
-            with open('calendar_token.json', 'r') as f:
-                creds_data = json.load(f)
-            credentials = Credentials.from_authorized_user_info(creds_data)
+            credentials = get_credentials_from_session()
+            if not credentials:
+                return jsonify({
+                    "success": False,
+                    "error": "Not authenticated. Please sign in with Google first."
+                }), 401
             
             # Refresh token if expired
             if credentials.expired and credentials.refresh_token:
                 credentials.refresh(Request())
+                session['credentials']['token'] = credentials.token
             
             # Build Calendar API service
             calendar_service = build('calendar', 'v3', credentials=credentials)
@@ -755,15 +764,19 @@ def delete_calendar_reminder(event_id):
                 "error": "event_id is required"
             }), 400
         
-        # Load calendar credentials
+        # Load calendar credentials from session (Vercel-compatible)
         try:
-            with open('calendar_token.json', 'r') as f:
-                creds_data = json.load(f)
-            credentials = Credentials.from_authorized_user_info(creds_data)
+            credentials = get_credentials_from_session()
+            if not credentials:
+                return jsonify({
+                    "success": False,
+                    "error": "Not authenticated. Please sign in with Google first."
+                }), 401
             
             # Refresh token if expired
             if credentials.expired and credentials.refresh_token:
                 credentials.refresh(Request())
+                session['credentials']['token'] = credentials.token
             
             # Build Calendar API service
             calendar_service = build('calendar', 'v3', credentials=credentials)
@@ -837,13 +850,17 @@ def get_upcoming_reminders():
             from googleapiclient.discovery import build
             from google.auth.transport.requests import Request
             
-            with open('calendar_token.json', 'r') as f:
-                creds_data = json.load(f)
-            credentials = Credentials.from_authorized_user_info(creds_data)
+            credentials = get_credentials_from_session()
+            if not credentials:
+                return jsonify({
+                    "success": False,
+                    "error": "Not authenticated. Please sign in with Google first."
+                }), 401
             
             # Refresh token if expired
             if credentials.expired and credentials.refresh_token:
                 credentials.refresh(Request())
+                session['credentials']['token'] = credentials.token
             
             # Build Calendar API service
             calendar_service = build('calendar', 'v3', credentials=credentials)
@@ -1064,10 +1081,11 @@ def _get_existing_calendar_events():
     from datetime import timedelta
     
     try:
-        # Load calendar credentials
-        with open('calendar_token.json', 'r') as f:
-            creds_data = json.load(f)
-        credentials = Credentials.from_authorized_user_info(creds_data)
+        # Load calendar credentials from session (Vercel-compatible)
+        credentials = get_credentials_from_session()
+        if not credentials:
+            print("⚠️ No credentials in session - skipping duplicate check")
+            return set()
         
         # Refresh token if expired
         if credentials.expired and credentials.refresh_token:

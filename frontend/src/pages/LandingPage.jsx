@@ -40,8 +40,11 @@ const LandingPage = () => {
     const left = window.screen.width / 2 - width / 2
     const top = window.screen.height / 2 - height / 2
     
+    // Use environment variable for backend URL (supports both local and Vercel)
+    const backendUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
+    
     window.open(
-      'http://localhost:5000/auth/google', 
+      `${backendUrl}/auth/google`, 
       'Google OAuth',
       `width=${width},height=${height},left=${left},top=${top}`
     )

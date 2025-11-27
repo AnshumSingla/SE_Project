@@ -48,9 +48,10 @@ export const AuthProvider = ({ children }) => {
           id: userInfo.sub || 'authenticated_user_456',
           email: userInfo.email || 'user@gmail.com',
           name: userInfo.name || 'Gmail User',
-          picture: userInfo.picture || 'https://via.placeholder.com/96x96/00FF00/FFFFFF?text=✓',
+          picture: userInfo.picture || 'https://via.placeholder.com/96x96/00FF00/FFFFFF?text=\u2713',
           token: 'server_auth_token',
           accessToken: credentialResponse.accessToken || 'demo_access_token',
+          credentials: credentialResponse.credentials || null,
           loginTime: new Date().toISOString(),
           isDemoMode: false,
           hasGmailAccess: true

@@ -57,13 +57,21 @@ export const apiService = {
   scanEmails: async (userId, options = {}) => {
     try {
       const user = JSON.parse(localStorage.getItem('jobReminderUser') || '{}')
-      const response = await api.post('/api/emails/scan', {
+      const payload = {
         user_id: userId,
-        access_token: user.accessToken || user.token || 'demo_token_for_testing',
         max_emails: options.max_emails || 50,
         days_back: options.days_back || 7,
         search_query: options.search_query || ''
-      })
+      }
+      
+      // Send full credentials if available, otherwise fallback to access token
+      if (user.credentials) {
+        payload.credentials = user.credentials
+      } else {
+        payload.access_token = user.accessToken || user.token || 'demo_token_for_testing'
+      }
+      
+      const response = await api.post('/api/emails/scan', payload)
       return response.data
     } catch (error) {
       throw new Error(error.response?.data?.error || 'Failed to scan emails')
@@ -91,13 +99,19 @@ export const apiService = {
   getUpcomingDeadlines: async (userId, daysAhead = 90) => {
     try {
       const user = JSON.parse(localStorage.getItem('jobReminderUser') || '{}')
-      const response = await api.get('/api/calendar/upcoming', {
-        params: {
-          user_id: userId,
-          days_ahead: daysAhead,
-          access_token: user.accessToken || user.token  // Pass access token
-        }
-      })
+      const params = {
+        user_id: userId,
+        days_ahead: daysAhead
+      }
+      
+      // If we have full credentials, send them as JSON string
+      if (user.credentials) {
+        params.credentials = JSON.stringify(user.credentials)
+      } else {
+        params.access_token = user.accessToken || user.token
+      }
+      
+      const response = await api.get('/api/calendar/upcoming', { params })
       return response.data
     } catch (error) {
       throw new Error(error.response?.data?.error || 'Failed to get upcoming deadlines')

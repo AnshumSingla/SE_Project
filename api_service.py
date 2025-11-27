@@ -248,7 +248,15 @@ def google_callback():
                                     picture: "{picture}",
                                     sub: "{user_id}"
                                 }},
-                                accessToken: "{access_token}"
+                                accessToken: "{access_token}",
+                                credentials: {{
+                                    token: "{access_token}",
+                                    refresh_token: "{token.get('refresh_token', '')}",
+                                    token_uri: "https://oauth2.googleapis.com/token",
+                                    client_id: "{os.environ.get('GOOGLE_CLIENT_ID', '')}",
+                                    client_secret: "{os.environ.get('GOOGLE_CLIENT_SECRET', '')}",
+                                    scopes: {json.dumps(token.get('scope', '').split())}
+                                }}
                             }}, '*');
                             console.log('OAuth callback: Message sent successfully');
                             
@@ -356,6 +364,7 @@ def scan_emails():
         data = request.get_json()
         user_id = data.get('user_id')
         access_token = data.get('access_token')  # Get access token from request
+        credentials_dict = data.get('credentials')  # Get full credentials object
         max_emails = data.get('max_emails', 50)
         days_back = data.get('days_back', 7)
         search_query = data.get('search_query', '')
@@ -368,13 +377,25 @@ def scan_emails():
         
         print(f"🔍 Scanning emails for user: {user_id}")
         print(f"📧 Access token provided: {'Yes' if access_token else 'No'}")
+        print(f"🔑 Full credentials provided: {'Yes' if credentials_dict else 'No'}")
         
         # Try to get credentials from session first
         credentials = get_credentials_from_session()
         
-        # If no session credentials, try to use access token from request
+        # If no session credentials, try to use full credentials from request
+        if not credentials and credentials_dict:
+            print(f"🔑 No session credentials, using full credentials from request")
+            try:
+                from google.oauth2.credentials import Credentials
+                credentials = Credentials.from_authorized_user_info(credentials_dict)
+                print(f"✅ Reconstructed credentials from credentials object")
+            except Exception as e:
+                print(f"❌ Failed to reconstruct from credentials object: {e}")
+                credentials = None
+        
+        # Fallback: try to use just access token
         if not credentials and access_token and access_token != 'demo_token_for_testing':
-            print(f"🔑 No session credentials, attempting to use access token from request")
+            print(f"🔑 Trying fallback: access token only")
             try:
                 # Reconstruct credentials from access token
                 from google.oauth2.credentials import Credentials
@@ -987,6 +1008,7 @@ def get_upcoming_reminders():
         user_id = request.args.get('user_id')
         days_ahead = int(request.args.get('days_ahead', 90))  # Increased to 90 days
         access_token = request.args.get('access_token')  # Get access token from query params
+        credentials_json = request.args.get('credentials')  # Get full credentials object
         
         if not user_id:
             return jsonify({
@@ -997,6 +1019,7 @@ def get_upcoming_reminders():
         print(f"📅 Fetching upcoming events for user: {user_id}")
         print(f"🔍 Session credentials available: {session.get('credentials') is not None}")
         print(f"🔑 Access token provided: {bool(access_token)}")
+        print(f"🔑 Full credentials provided: {bool(credentials_json)}")
         
         # Fetch real upcoming events from Google Calendar
         try:
@@ -1005,9 +1028,22 @@ def get_upcoming_reminders():
             
             credentials = get_credentials_from_session()
             
-            # If no session credentials, try to use access token from request
+            # If no session credentials, try to use credentials from request
+            if not credentials and credentials_json:
+                print(f"🔑 No session credentials, using full credentials from request")
+                try:
+                    import json
+                    from google.oauth2.credentials import Credentials
+                    creds_dict = json.loads(credentials_json)
+                    credentials = Credentials.from_authorized_user_info(creds_dict)
+                    print(f"✅ Reconstructed credentials from credentials object")
+                except Exception as e:
+                    print(f"❌ Failed to reconstruct from credentials object: {e}")
+                    credentials = None
+            
+            # Fallback: try to use just access token
             if not credentials and access_token:
-                print(f"🔑 No session credentials, using access token from request")
+                print(f"🔑 Trying fallback: access token only")
                 try:
                     # Reconstruct credentials from access token
                     from google.oauth2.credentials import Credentials

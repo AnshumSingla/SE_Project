@@ -8,45 +8,45 @@ export default {
     extend: {
       colors: {
         primary: {
-          50: '#E0FFFF',
-          100: '#B8FFFF',
-          200: '#7DFFFF',
-          300: '#42FFFF',
-          400: '#14FFFF',
-          500: '#00FFFF', // Main cyan
-          600: '#00E5E5',
-          700: '#00CCCC',
-          800: '#00B3B3',
-          900: '#009999',
+          50: '#FFF5E6',
+          100: '#FFE8C2',
+          200: '#FFD699',
+          300: '#FFC570',
+          400: '#FFB347',
+          500: '#FF9500', // Main orange
+          600: '#E68600',
+          700: '#CC7700',
+          800: '#B36800',
+          900: '#995900',
         },
         accent: {
-          50: '#E0F9F9',
-          100: '#B3F0F0',
-          200: '#80E6E6',
-          300: '#4DDDDD',
-          400: '#26D4D4',
-          500: '#00ADB5', // Main accent
-          600: '#009CA4',
-          700: '#008B93',
-          800: '#007A82',
-          900: '#006971',
+          50: '#FFF0E0',
+          100: '#FFD9B8',
+          200: '#FFC28A',
+          300: '#FFAB5C',
+          400: '#FF9938',
+          500: '#FF8714', // Bright orange accent
+          600: '#F07B12',
+          700: '#E06D0F',
+          800: '#D15F0D',
+          900: '#C24608',
         },
         dark: {
-          50: '#404040',
-          100: '#333333',
-          200: '#262626',
-          300: '#1F1F1F',
-          400: '#1A1A1A', // Card color
-          500: '#0D0D0D', // Main background
-          600: '#0A0A0A',
-          700: '#080808',
-          800: '#050505',
-          900: '#030303',
+          50: '#5C4A3A',
+          100: '#4A3B2E',
+          200: '#3A2F24',
+          300: '#2D231A',
+          400: '#1F1710', // Card color
+          500: '#120D08', // Main background
+          600: '#0F0A06',
+          700: '#0C0805',
+          800: '#090603',
+          900: '#060402',
         },
         text: {
-          primary: '#E0E0E0',
-          secondary: '#B3B3B3',
-          muted: '#808080',
+          primary: '#F5E6D3',
+          secondary: '#C9B29A',
+          muted: '#8C7A68',
         }
       },
       fontFamily: {
@@ -60,10 +60,10 @@ export default {
       keyframes: {
         glow: {
           'from': { 
-            boxShadow: '0 0 5px #00FFFF, 0 0 10px #00FFFF, 0 0 15px #00FFFF',
+            boxShadow: '0 0 5px #FF9500, 0 0 10px #FF9500, 0 0 15px #FF9500',
           },
           'to': { 
-            boxShadow: '0 0 10px #00FFFF, 0 0 20px #00FFFF, 0 0 30px #00FFFF',
+            boxShadow: '0 0 10px #FF9500, 0 0 20px #FF9500, 0 0 30px #FF9500',
           },
         },
         float: {

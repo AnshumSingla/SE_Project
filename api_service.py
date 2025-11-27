@@ -90,6 +90,15 @@ def init_system():
         print(f"❌ System initialization failed: {e}")
         return False
 
+# Initialize system at module level for Vercel
+try:
+    print("🔄 Initializing email system...")
+    email_system = IntegratedEmailReminderSystem(use_llm=True)
+    print("✅ Email system initialized successfully")
+except Exception as e:
+    print(f"⚠️ Email system initialization failed: {e}")
+    email_system = None
+
 @app.after_request
 def after_request(response):
     """Ensure CORS headers are set on all responses"""

@@ -13,26 +13,33 @@ const LandingPage = () => {
   const handleServerAuth = () => {
     // Listen for OAuth callback
     const handleMessage = (event) => {
+      console.log('🔔 Received postMessage from:', event.origin)
+      console.log('📦 Message data:', event.data)
+      
       // Accept messages from backend (localhost or Vercel)
       const backendUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
       const allowedOrigins = ['http://localhost:5000', backendUrl.replace(/\/$/, '')]
       
       if (!allowedOrigins.some(origin => event.origin.startsWith(origin))) {
-        console.log('Ignoring message from:', event.origin)
+        console.log('⚠️ Ignoring message from:', event.origin)
         return
       }
       
+      console.log('✅ Message from allowed origin, processing...')
+      
       if (event.data.success) {
+        console.log('🎉 OAuth success! Creating credentials...')
         // Create credential response with real user data and access token
         const mockCredential = {
           credential: "server_auth_token",
           userInfo: event.data.user,
           accessToken: event.data.accessToken
         }
-        login(mockCredential)
+        console.log('🔐 Calling login with credentials for:', event.data.user?.email)
         window.removeEventListener('message', handleMessage)
+        login(mockCredential)
       } else {
-        console.error('Server OAuth failed:', event.data.error)
+        console.error('❌ Server OAuth failed:', event.data.error)
         alert('Authentication failed: ' + event.data.error)
         window.removeEventListener('message', handleMessage)
       }

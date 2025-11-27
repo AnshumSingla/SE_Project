@@ -219,22 +219,41 @@ def google_callback():
             <html>
             <head>
                 <title>Success</title>
+                <style>
+                    body {{ font-family: Arial; padding: 40px; text-align: center; background: #f0f0f0; }}
+                    .success {{ color: #00cc00; font-size: 24px; }}
+                </style>
             </head>
             <body>
-                <h2>✅ Authentication Successful!</h2>
+                <div class="success">✅ Authentication Successful!</div>
+                <p>This window will close automatically...</p>
                 <script>
-                    if (window.opener) {{
-                        window.opener.postMessage({{
-                            success: true,
-                            user: {{
-                                email: "{email}",
-                                name: "{name}",
-                                picture: "{picture}",
-                                sub: "{user_id}"
-                            }},
-                            accessToken: "{access_token}"
-                        }}, '*');
-                        setTimeout(() => window.close(), 1000);
+                    console.log('OAuth callback: Sending message to parent...');
+                    if (window.opener && !window.opener.closed) {{
+                        try {{
+                            window.opener.postMessage({{
+                                success: true,
+                                user: {{
+                                    email: "{email}",
+                                    name: "{name}",
+                                    picture: "{picture}",
+                                    sub: "{user_id}"
+                                }},
+                                accessToken: "{access_token}"
+                            }}, '*');
+                            console.log('OAuth callback: Message sent successfully');
+                            
+                            // Close after message is sent
+                            setTimeout(() => {{
+                                console.log('OAuth callback: Closing popup...');
+                                window.close();
+                            }}, 1500);
+                        }} catch (e) {{
+                            console.error('OAuth callback: Error sending message:', e);
+                        }}
+                    }} else {{
+                        console.log('OAuth callback: No opener window found');
+                        document.body.innerHTML += '<p>Please close this window and return to the app.</p>';
                     }}
                 </script>
             </body>

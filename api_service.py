@@ -908,7 +908,11 @@ def delete_calendar_reminder(event_id):
         from googleapiclient.errors import HttpError
         
         user_id = request.args.get('user_id')
+        access_token = request.args.get('access_token')
+        credentials_json = request.args.get('credentials')
+        
         print(f"🗑️  DELETE request - event_id: {event_id}, user_id: {user_id}")
+        print(f"🔑 Credentials provided: {bool(credentials_json)}, Access token: {bool(access_token)}")
         
         if not user_id:
             return jsonify({
@@ -922,15 +926,36 @@ def delete_calendar_reminder(event_id):
                 "error": "event_id is required"
             }), 400
         
-        # Load calendar credentials from session (Vercel-compatible)
+        # Get credentials from request (Vercel-compatible)
         try:
             credentials = get_credentials_from_session()
+            
+            # Try full credentials from request
+            if not credentials and credentials_json:
+                print(f"🔑 Using credentials from request")
+                import json
+                from google.oauth2.credentials import Credentials
+                creds_dict = json.loads(credentials_json)
+                credentials = Credentials.from_authorized_user_info(creds_dict)
+            
+            # Fallback to access token
+            if not credentials and access_token:
+                print(f"🔑 Using access token from request")
+                from google.oauth2.credentials import Credentials
+                credentials = Credentials(
+                    token=access_token,
+                    client_id=os.environ.get('GOOGLE_CLIENT_ID'),
+                    client_secret=os.environ.get('GOOGLE_CLIENT_SECRET'),
+                    token_uri='https://oauth2.googleapis.com/token',
+                    scopes=SCOPES
+                )
+            
             if not credentials:
-                print("⚠️ No credentials in session - cannot delete calendar event")
+                print("⚠️ No credentials available - cannot delete calendar event")
                 return jsonify({
                     "success": False,
-                    "error": "Session expired. Please sign in again to manage calendar events."
-                }), 200
+                    "error": "Authentication required. Please sign in again."
+                }), 401
             
             # Refresh token if expired
             if credentials.expired and credentials.refresh_token:

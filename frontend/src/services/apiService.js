@@ -121,11 +121,19 @@ export const apiService = {
   // Delete calendar reminder
   deleteReminder: async (userId, eventId) => {
     try {
-      const response = await api.delete(`/api/calendar/reminders/${eventId}`, {
-        params: {
-          user_id: userId
-        }
-      })
+      const user = JSON.parse(localStorage.getItem('jobReminderUser') || '{}')
+      const params = {
+        user_id: userId
+      }
+      
+      // Send credentials for serverless authentication
+      if (user.credentials) {
+        params.credentials = JSON.stringify(user.credentials)
+      } else {
+        params.access_token = user.accessToken || user.token
+      }
+      
+      const response = await api.delete(`/api/calendar/reminders/${eventId}`, { params })
       return response.data
     } catch (error) {
       throw new Error(error.response?.data?.error || 'Failed to delete reminder')

@@ -223,10 +223,94 @@ const HomePage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-dark-500">
+      <div className="min-h-screen bg-dark-500 flex items-center justify-center">
         <Navbar />
-        <div className="flex items-center justify-center pt-32">
-          <div className="animate-spin rounded-full h-12 w-12 border-2 border-primary-500 border-t-transparent"></div>
+        <div className="flex flex-col items-center justify-center">
+          {/* Animated Job Hunt Loader */}
+          <div className="relative w-32 h-32 mb-6">
+            {/* Briefcase */}
+            <motion.div
+              animate={{ 
+                y: [0, -20, 0],
+                rotate: [0, 5, -5, 0]
+              }}
+              transition={{ 
+                duration: 2,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+              className="absolute inset-0 flex items-center justify-center"
+            >
+              <div className="text-7xl">💼</div>
+            </motion.div>
+            
+            {/* Flying Emails */}
+            <motion.div
+              animate={{ 
+                x: [-40, 40],
+                y: [-20, 20],
+                opacity: [0, 1, 0]
+              }}
+              transition={{ 
+                duration: 2.5,
+                repeat: Infinity,
+                ease: "linear"
+              }}
+              className="absolute top-0 left-0 text-3xl"
+            >
+              📧
+            </motion.div>
+            
+            <motion.div
+              animate={{ 
+                x: [40, -40],
+                y: [20, -20],
+                opacity: [0, 1, 0]
+              }}
+              transition={{ 
+                duration: 2.5,
+                delay: 1.2,
+                repeat: Infinity,
+                ease: "linear"
+              }}
+              className="absolute bottom-0 right-0 text-3xl"
+            >
+              📨
+            </motion.div>
+          </div>
+          
+          {/* Loading Text */}
+          <motion.div
+            animate={{ opacity: [0.5, 1, 0.5] }}
+            transition={{ duration: 1.5, repeat: Infinity }}
+            className="text-center"
+          >
+            <h2 className="text-2xl font-bold text-primary-500 mb-2">
+              🔍 Hunting for opportunities...
+            </h2>
+            <p className="text-text-secondary">
+              Syncing your emails and calendar
+            </p>
+          </motion.div>
+          
+          {/* Progress Dots */}
+          <div className="flex space-x-2 mt-6">
+            {[0, 1, 2].map((i) => (
+              <motion.div
+                key={i}
+                animate={{ 
+                  scale: [1, 1.5, 1],
+                  backgroundColor: ['#00FFFF', '#00FF88', '#00FFFF']
+                }}
+                transition={{ 
+                  duration: 1,
+                  delay: i * 0.3,
+                  repeat: Infinity
+                }}
+                className="w-3 h-3 rounded-full bg-primary-500"
+              />
+            ))}
+          </div>
         </div>
       </div>
     )

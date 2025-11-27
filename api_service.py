@@ -504,10 +504,9 @@ def scan_emails():
         print(f"   ❌ Total filtered: {skipped_count}")
         print(f"   ✅ New reminders to show: {len(formatted_results)}")
         
-        # Calculate summary statistics
-        total_emails = len(formatted_results)
+        # Calculate summary statistics based on actual valid results
         job_related_count = sum(1 for r in formatted_results if r['classification']['is_job_related'])
-        deadline_count = sum(1 for r in formatted_results if r['deadline']['has_deadline'])
+        new_reminders_ready = sum(1 for r in formatted_results if r['deadline']['has_deadline'])
         
         return jsonify({
             "success": True,
@@ -515,12 +514,13 @@ def scan_emails():
             "user_id": user_id,
             "summary": {
                 "total_emails_scanned": len(results),
-                "total_emails": total_emails,
+                "valid_future_deadlines": new_reminders_ready,
+                "new_reminders_ready": new_reminders_ready,
                 "job_related_emails": job_related_count,
-                "emails_with_deadlines": deadline_count,
                 "expired_filtered": expired_count,
                 "duplicates_filtered": duplicate_count,
                 "total_filtered": skipped_count,
+                "upcoming_only": True,
                 "scan_parameters": {
                     "max_emails": max_emails,
                     "days_back": days_back,

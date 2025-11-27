@@ -62,12 +62,19 @@ const HomePage = () => {
   const handleEmailScanComplete = async (scanResults) => {
     if (scanResults.success) {
       const jobEmails = scanResults.summary.job_related_emails
-      const deadlineEmails = scanResults.summary.emails_with_deadlines
+      const newRemindersReady = scanResults.summary.new_reminders_ready || scanResults.summary.valid_future_deadlines || 0
       const duplicatesFiltered = scanResults.summary.duplicates_filtered || 0
+      const expiredFiltered = scanResults.summary.expired_filtered || 0
+      const totalFiltered = scanResults.summary.total_filtered || 0
       
-      let message = `Found ${jobEmails} job-related emails with ${deadlineEmails} deadlines!`
-      if (duplicatesFiltered > 0) {
-        message += ` (${duplicatesFiltered} duplicates/past deadlines filtered)`
+      let message = `Found ${jobEmails} job-related emails with ${newRemindersReady} new deadlines!`
+      if (totalFiltered > 0) {
+        const filterDetails = []
+        if (duplicatesFiltered > 0) filterDetails.push(`${duplicatesFiltered} duplicates`)
+        if (expiredFiltered > 0) filterDetails.push(`${expiredFiltered} expired`)
+        if (filterDetails.length > 0) {
+          message += ` (${filterDetails.join(', ')} filtered)`
+        }
       }
       toast.success(message)
       

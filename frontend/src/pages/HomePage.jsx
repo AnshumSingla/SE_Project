@@ -498,7 +498,7 @@ const HomePage = () => {
               {/* Quick Actions */}
               <motion.div
                 whileHover={{ scale: 1.02 }}
-                transition={{ duration: 0.2 }}
+                transition={{ duration: 0.1 }}
                 className="glass-card p-6 rounded-xl"
               >
                 <h3 className="text-lg font-semibold text-text-primary mb-4">

@@ -26,18 +26,63 @@ api.interceptors.request.use(
   }
 )
 
-// Response interceptor for error handling
+// Token refresh helper
+const refreshAccessToken = async () => {
+  try {
+    const user = JSON.parse(localStorage.getItem('jobReminderUser') || '{}')
+    if (!user.credentials?.refresh_token) {
+      throw new Error('No refresh token available')
+    }
+
+    console.log('🔄 Refreshing access token...')
+    const response = await axios.post(`${API_BASE_URL}/api/auth/refresh`, {
+      refresh_token: user.credentials.refresh_token,
+      client_id: user.credentials.client_id,
+      client_secret: user.credentials.client_secret
+    })
+
+    if (response.data.success) {
+      // Update stored credentials with new access token
+      user.credentials.token = response.data.access_token
+      user.accessToken = response.data.access_token
+      localStorage.setItem('jobReminderUser', JSON.stringify(user))
+      console.log('✅ Access token refreshed successfully')
+      return response.data.access_token
+    }
+    throw new Error('Token refresh failed')
+  } catch (error) {
+    console.error('❌ Token refresh failed:', error)
+    return null
+  }
+}
+
+// Response interceptor for error handling and auto token refresh
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    console.error('API Error:', error)
+  async (error) => {
+    const originalRequest = error.config
     
-    if (error.response?.status === 401) {
-      // Handle unauthorized access
-      localStorage.removeItem('jobReminderUser')
-      window.location.href = '/'
+    // If 401 and we haven't tried refreshing yet
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true
+      
+      console.log('🔑 Detected 401 - attempting token refresh...')
+      const newAccessToken = await refreshAccessToken()
+      
+      if (newAccessToken) {
+        // Retry original request with new token
+        console.log('🔄 Retrying original request with new token')
+        return api(originalRequest)
+      } else {
+        // Refresh failed - redirect to login
+        console.log('❌ Token refresh failed - redirecting to login')
+        localStorage.removeItem('jobReminderUser')
+        localStorage.removeItem('lastSync')
+        window.location.href = '/'
+      }
     }
     
+    console.error('API Error:', error)
     return Promise.reject(error)
   }
 )

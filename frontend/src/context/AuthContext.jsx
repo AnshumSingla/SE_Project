@@ -32,9 +32,54 @@ export const AuthProvider = ({ children }) => {
   })
   const [loading, setLoading] = useState(false)
 
+  // Check and refresh token on mount if needed
   useEffect(() => {
-    // Additional check on mount (already handled in useState initializer)
     console.log('✅ AuthContext mounted, user:', user?.email || 'None')
+    
+    const checkAndRefreshToken = async () => {
+      if (!user?.credentials?.refresh_token) return
+      
+      // Check if token might be expired (stored tokens from Google are typically 1 hour)
+      const loginTime = user.loginTime ? new Date(user.loginTime).getTime() : 0
+      const now = Date.now()
+      const hoursSinceLogin = (now - loginTime) / (1000 * 60 * 60)
+      
+      // Proactively refresh if logged in more than 50 minutes ago
+      if (hoursSinceLogin > 0.83) { // 50 minutes
+        console.log('🔄 Token may be expired, refreshing proactively...')
+        try {
+          const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/auth/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              refresh_token: user.credentials.refresh_token,
+              client_id: user.credentials.client_id,
+              client_secret: user.credentials.client_secret
+            })
+          })
+          
+          const data = await response.json()
+          if (data.success) {
+            const updatedUser = {
+              ...user,
+              credentials: {
+                ...user.credentials,
+                token: data.access_token
+              },
+              accessToken: data.access_token,
+              loginTime: new Date().toISOString()
+            }
+            setUser(updatedUser)
+            localStorage.setItem('jobReminderUser', JSON.stringify(updatedUser))
+            console.log('✅ Token refreshed proactively on mount')
+          }
+        } catch (error) {
+          console.error('⚠️ Proactive token refresh failed:', error)
+        }
+      }
+    }
+    
+    checkAndRefreshToken()
   }, [])
 
   const login = async (credentialResponse) => {

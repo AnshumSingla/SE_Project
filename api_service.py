@@ -309,6 +309,66 @@ def health_check():
         "system_ready": email_system is not None
     })
 
+@app.route('/api/auth/refresh', methods=['POST'])
+def refresh_access_token():
+    """
+    Refresh an expired access token using refresh token
+    
+    Expected payload:
+    {
+        "refresh_token": "refresh_token_value",
+        "client_id": "google_client_id",
+        "client_secret": "google_client_secret"
+    }
+    """
+    try:
+        data = request.get_json()
+        refresh_token = data.get('refresh_token')
+        client_id = data.get('client_id') or os.environ.get('GOOGLE_CLIENT_ID')
+        client_secret = data.get('client_secret') or os.environ.get('GOOGLE_CLIENT_SECRET')
+        
+        if not refresh_token:
+            return jsonify({
+                "success": False,
+                "error": "refresh_token is required"
+            }), 400
+        
+        print(f"🔄 Attempting to refresh access token...")
+        
+        # Use Google's token endpoint to refresh
+        from google.oauth2.credentials import Credentials
+        from google.auth.transport.requests import Request
+        
+        credentials = Credentials(
+            token=None,  # Old token expired
+            refresh_token=refresh_token,
+            token_uri='https://oauth2.googleapis.com/token',
+            client_id=client_id,
+            client_secret=client_secret,
+            scopes=SCOPES
+        )
+        
+        # This will automatically refresh the token
+        credentials.refresh(Request())
+        
+        print(f"✅ Token refreshed successfully")
+        
+        return jsonify({
+            "success": True,
+            "access_token": credentials.token,
+            "expires_in": 3600  # Google tokens typically expire in 1 hour
+        })
+        
+    except Exception as e:
+        print(f"❌ Token refresh error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "message": "Failed to refresh token. Please sign in again."
+        }), 401
+
 @app.route('/api/auth/setup', methods=['POST'])
 def setup_user_credentials():
     """

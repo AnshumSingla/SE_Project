@@ -130,9 +130,16 @@ export const apiService = {
         search_query: options.search_query || ''
       }
       
-      // Send full credentials if available, otherwise fallback to access token
-      if (user.credentials) {
-        payload.credentials = user.credentials
+      // Send full credentials with all required fields if available
+      if (user.credentials && user.credentials.refresh_token) {
+        payload.credentials = {
+          token: user.credentials.token,
+          refresh_token: user.credentials.refresh_token,
+          token_uri: user.credentials.token_uri || 'https://oauth2.googleapis.com/token',
+          client_id: user.credentials.client_id,
+          client_secret: user.credentials.client_secret,
+          scopes: user.credentials.scopes || ['openid', 'https://www.googleapis.com/auth/userinfo.email', 'https://www.googleapis.com/auth/userinfo.profile', 'https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/calendar']
+        }
       } else {
         payload.access_token = user.accessToken || user.token || 'demo_token_for_testing'
       }
@@ -170,9 +177,18 @@ export const apiService = {
         days_ahead: daysAhead
       }
       
-      // If we have full credentials, send them as JSON string
-      if (user.credentials) {
-        params.credentials = JSON.stringify(user.credentials)
+      // If we have full credentials, send them as JSON string with all required fields
+      if (user.credentials && user.credentials.refresh_token) {
+        // Ensure all required fields are present
+        const credentialsToSend = {
+          token: user.credentials.token,
+          refresh_token: user.credentials.refresh_token,
+          token_uri: user.credentials.token_uri || 'https://oauth2.googleapis.com/token',
+          client_id: user.credentials.client_id,
+          client_secret: user.credentials.client_secret,
+          scopes: user.credentials.scopes || ['openid', 'https://www.googleapis.com/auth/userinfo.email', 'https://www.googleapis.com/auth/userinfo.profile', 'https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/calendar']
+        }
+        params.credentials = JSON.stringify(credentialsToSend)
       } else {
         params.access_token = user.accessToken || user.token
       }
@@ -192,9 +208,17 @@ export const apiService = {
         user_id: userId
       }
       
-      // Send credentials for serverless authentication
-      if (user.credentials) {
-        params.credentials = JSON.stringify(user.credentials)
+      // Send credentials for serverless authentication with all required fields
+      if (user.credentials && user.credentials.refresh_token) {
+        const credentialsToSend = {
+          token: user.credentials.token,
+          refresh_token: user.credentials.refresh_token,
+          token_uri: user.credentials.token_uri || 'https://oauth2.googleapis.com/token',
+          client_id: user.credentials.client_id,
+          client_secret: user.credentials.client_secret,
+          scopes: user.credentials.scopes || ['openid', 'https://www.googleapis.com/auth/userinfo.email', 'https://www.googleapis.com/auth/userinfo.profile', 'https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/calendar']
+        }
+        params.credentials = JSON.stringify(credentialsToSend)
       } else {
         params.access_token = user.accessToken || user.token
       }

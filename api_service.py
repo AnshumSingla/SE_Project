@@ -494,10 +494,22 @@ def scan_emails():
             print(f"🔑 No session credentials, using full credentials from request")
             try:
                 from google.oauth2.credentials import Credentials
+                
+                # Ensure all required fields for refresh are present
+                if not credentials_dict.get('token_uri'):
+                    credentials_dict['token_uri'] = 'https://oauth2.googleapis.com/token'
+                if not credentials_dict.get('client_id'):
+                    credentials_dict['client_id'] = os.environ.get('GOOGLE_CLIENT_ID')
+                if not credentials_dict.get('client_secret'):
+                    credentials_dict['client_secret'] = os.environ.get('GOOGLE_CLIENT_SECRET')
+                
                 credentials = Credentials.from_authorized_user_info(credentials_dict)
                 print(f"✅ Reconstructed credentials from credentials object")
+                print(f"🔑 Credentials has refresh_token: {bool(credentials.refresh_token)}")
             except Exception as e:
                 print(f"❌ Failed to reconstruct from credentials object: {e}")
+                import traceback
+                traceback.print_exc()
                 credentials = None
         
         # Fallback: try to use just access token
@@ -1054,7 +1066,17 @@ def delete_calendar_reminder(event_id):
                 import json
                 from google.oauth2.credentials import Credentials
                 creds_dict = json.loads(credentials_json)
+                
+                # Ensure all required fields for refresh are present
+                if not creds_dict.get('token_uri'):
+                    creds_dict['token_uri'] = 'https://oauth2.googleapis.com/token'
+                if not creds_dict.get('client_id'):
+                    creds_dict['client_id'] = os.environ.get('GOOGLE_CLIENT_ID')
+                if not creds_dict.get('client_secret'):
+                    creds_dict['client_secret'] = os.environ.get('GOOGLE_CLIENT_SECRET')
+                
                 credentials = Credentials.from_authorized_user_info(creds_dict)
+                print(f"✅ Reconstructed credentials with refresh_token: {bool(credentials.refresh_token)}")
             
             # Fallback to access token
             if not credentials and access_token:
@@ -1173,10 +1195,22 @@ def get_upcoming_reminders():
                     import json
                     from google.oauth2.credentials import Credentials
                     creds_dict = json.loads(credentials_json)
+                    
+                    # Ensure all required fields for refresh are present
+                    if not creds_dict.get('token_uri'):
+                        creds_dict['token_uri'] = 'https://oauth2.googleapis.com/token'
+                    if not creds_dict.get('client_id'):
+                        creds_dict['client_id'] = os.environ.get('GOOGLE_CLIENT_ID')
+                    if not creds_dict.get('client_secret'):
+                        creds_dict['client_secret'] = os.environ.get('GOOGLE_CLIENT_SECRET')
+                    
                     credentials = Credentials.from_authorized_user_info(creds_dict)
                     print(f"✅ Reconstructed credentials from credentials object")
+                    print(f"🔑 Credentials has refresh_token: {bool(credentials.refresh_token)}")
                 except Exception as e:
                     print(f"❌ Failed to reconstruct from credentials object: {e}")
+                    import traceback
+                    traceback.print_exc()
                     credentials = None
             
             # Fallback: try to use just access token

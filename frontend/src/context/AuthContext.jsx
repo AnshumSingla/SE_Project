@@ -32,21 +32,22 @@ export const AuthProvider = ({ children }) => {
   })
   const [loading, setLoading] = useState(false)
 
-  // Check and refresh token on mount if needed
+  // Background token refresh - check every 10 minutes
   useEffect(() => {
     console.log('✅ AuthContext mounted, user:', user?.email || 'None')
     
-    const checkAndRefreshToken = async () => {
+    const refreshTokenIfNeeded = async () => {
       if (!user?.credentials?.refresh_token) return
       
-      // Check if token might be expired (stored tokens from Google are typically 1 hour)
-      const loginTime = user.loginTime ? new Date(user.loginTime).getTime() : 0
       const now = Date.now()
-      const hoursSinceLogin = (now - loginTime) / (1000 * 60 * 60)
+      const expiryTime = user.credentials.expiry_time || 0
+      const minutesUntilExpiry = (expiryTime - now) / (1000 * 60)
       
-      // Proactively refresh if logged in more than 50 minutes ago
-      if (hoursSinceLogin > 0.83) { // 50 minutes
-        console.log('🔄 Token may be expired, refreshing proactively...')
+      console.log(`⏱️  Token expires in ${Math.round(minutesUntilExpiry)} minutes`)
+      
+      // Refresh if expiring within 5 minutes (300000ms)
+      if (minutesUntilExpiry < 5) {
+        console.log('🔄 Token expiring soon, refreshing proactively...')
         try {
           const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/auth/refresh`, {
             method: 'POST',
@@ -59,19 +60,31 @@ export const AuthProvider = ({ children }) => {
           })
           
           const data = await response.json()
+          
+          // Handle invalid_grant error (revoked refresh token)
+          if (!data.success && data.error === 'invalid_grant') {
+            console.error('❌ Refresh token revoked - logging out')
+            toast.error('Session expired. Please login again.')
+            localStorage.removeItem('jobReminderUser')
+            localStorage.removeItem('lastSync')
+            setUser(null)
+            navigate('/')
+            return
+          }
+          
           if (data.success) {
             const updatedUser = {
               ...user,
               credentials: {
                 ...user.credentials,
-                token: data.access_token
+                token: data.access_token,
+                expiry_time: data.expiry_time
               },
-              accessToken: data.access_token,
-              loginTime: new Date().toISOString()
+              accessToken: data.access_token
             }
             setUser(updatedUser)
             localStorage.setItem('jobReminderUser', JSON.stringify(updatedUser))
-            console.log('✅ Token refreshed proactively on mount')
+            console.log('✅ Token refreshed proactively')
           }
         } catch (error) {
           console.error('⚠️ Proactive token refresh failed:', error)
@@ -79,8 +92,14 @@ export const AuthProvider = ({ children }) => {
       }
     }
     
-    checkAndRefreshToken()
-  }, [])
+    // Check immediately on mount
+    refreshTokenIfNeeded()
+    
+    // Then check every 10 minutes
+    const interval = setInterval(refreshTokenIfNeeded, 10 * 60 * 1000)
+    
+    return () => clearInterval(interval)
+  }, [user?.credentials?.refresh_token, user?.credentials?.expiry_time, navigate])
 
   const login = async (credentialResponse) => {
     try {

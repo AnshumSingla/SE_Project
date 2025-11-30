@@ -42,16 +42,37 @@ const refreshAccessToken = async () => {
     })
 
     if (response.data.success) {
-      // Update stored credentials with new access token
+      // Update stored credentials with new access token and expiry
       user.credentials.token = response.data.access_token
+      user.credentials.expiry_time = response.data.expiry_time
       user.accessToken = response.data.access_token
       localStorage.setItem('jobReminderUser', JSON.stringify(user))
       console.log('✅ Access token refreshed successfully')
+      console.log('⏱️  New expiry time:', new Date(response.data.expiry_time).toLocaleString())
       return response.data.access_token
     }
+    
+    // Handle invalid_grant error
+    if (response.data.error === 'invalid_grant') {
+      console.error('❌ Refresh token revoked')
+      localStorage.removeItem('jobReminderUser')
+      localStorage.removeItem('lastSync')
+      window.location.href = '/'
+      return null
+    }
+    
     throw new Error('Token refresh failed')
   } catch (error) {
     console.error('❌ Token refresh failed:', error)
+    
+    // Check for invalid_grant in error response
+    if (error.response?.data?.error === 'invalid_grant') {
+      console.error('❌ Refresh token revoked - redirecting to login')
+      localStorage.removeItem('jobReminderUser')
+      localStorage.removeItem('lastSync')
+      window.location.href = '/'
+    }
+    
     return null
   }
 }

@@ -29,18 +29,21 @@
 ### Tech Stack
 
 **Frontend:**
+
 - React + Vite
 - Tailwind CSS + Framer Motion
 - React Router + Context API
 - Axios for API calls
 
 **Backend:**
+
 - Flask (Python)
 - Google OAuth 2.0
 - Gmail API + Calendar API
 - Serverless on Vercel
 
 **Storage:**
+
 - Client-side: localStorage
 - Deadlines: Google Calendar
 - No database required
@@ -151,38 +154,45 @@ The system identifies:
 ### Deploy to Vercel
 
 **Backend:**
+
 ```bash
 vercel --prod
 ```
 
 Environment variables needed:
+
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
 - `BACKEND_URL` (your Vercel backend URL)
 - `FRONTEND_URL` (your Vercel frontend URL)
 
 **Frontend:**
+
 ```bash
 cd frontend
 vercel --prod
 ```
 
 Environment variables needed:
+
 - `VITE_API_BASE_URL` (your Vercel backend URL)
 
 ## 🛠️ Troubleshooting
 
 ### OAuth Issues
+
 - Check authorized redirect URIs in Google Cloud Console
 - Verify client ID and secret in environment variables
 - Clear browser localStorage and try again
 
 ### No Events Showing
+
 - Log out and log back in to refresh credentials
 - Check browser console for API errors
 - Verify Google Calendar API is enabled
 
 ### Duplicate Events
+
 - Fixed automatically - backend checks for duplicates before creating
 
 ## 🔒 Security
@@ -201,6 +211,7 @@ MIT License - feel free to use for personal or commercial projects
 ## 🤝 Contributing
 
 Contributions welcome! Please:
+
 1. Fork the repository
 2. Create a feature branch
 3. Submit a pull request

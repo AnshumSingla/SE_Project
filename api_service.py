@@ -181,9 +181,16 @@ def google_callback():
         
         access_token = token.get('access_token')
         refresh_token = token.get('refresh_token')
+        expires_in = token.get('expires_in', 3600)  # Default 1 hour
         
         print(f"✅ Access token received: {access_token[:20]}...")
         print(f"🔄 Refresh token received: {'Yes' if refresh_token else 'No'}")
+        print(f"⏱️  Token expires in: {expires_in} seconds")
+        
+        # Calculate expiry timestamp (current time + expires_in)
+        from datetime import datetime, timedelta
+        expiry_time = datetime.now() + timedelta(seconds=expires_in)
+        expiry_timestamp = int(expiry_time.timestamp() * 1000)  # Milliseconds for JavaScript
         
         # Get user info from Google
         headers = {'Authorization': f'Bearer {access_token}'}
@@ -196,14 +203,15 @@ def google_callback():
         session['access_token'] = access_token
         session['refresh_token'] = token.get('refresh_token')
         
-        # Create credentials for Gmail/Calendar APIs
+        # Create credentials for Gmail/Calendar APIs with expiry
         credentials_dict = {
             'token': access_token,
             'refresh_token': token.get('refresh_token'),
             'token_uri': 'https://oauth2.googleapis.com/token',
             'client_id': os.environ.get('GOOGLE_CLIENT_ID'),
             'client_secret': os.environ.get('GOOGLE_CLIENT_SECRET'),
-            'scopes': token.get('scope', '').split()
+            'scopes': token.get('scope', '').split(),
+            'expiry': expiry_time.isoformat()  # Store as ISO string
         }
         
         credentials = Credentials.from_authorized_user_info(credentials_dict)
@@ -255,7 +263,8 @@ def google_callback():
                                     token_uri: "https://oauth2.googleapis.com/token",
                                     client_id: "{os.environ.get('GOOGLE_CLIENT_ID', '')}",
                                     client_secret: "{os.environ.get('GOOGLE_CLIENT_SECRET', '')}",
-                                    scopes: {json.dumps(token.get('scope', '').split())}
+                                    scopes: {json.dumps(token.get('scope', '').split())},
+                                    expiry_time: {expiry_timestamp}
                                 }}
                             }}, '*');
                             console.log('OAuth callback: Message sent successfully');
@@ -309,6 +318,30 @@ def health_check():
         "system_ready": email_system is not None
     })
 
+def _ensure_valid_credentials(credentials):
+    """
+    Validate credentials and auto-refresh if expired.
+    Returns refreshed credentials or raises exception.
+    """
+    from google.auth.transport.requests import Request
+    
+    if not credentials:
+        raise ValueError("No credentials provided")
+    
+    # Check if token is expired or expiring soon
+    if credentials.expired or (credentials.expiry and credentials.expiry <= datetime.now()):
+        print(f"🔄 Token expired, auto-refreshing...")
+        try:
+            credentials.refresh(Request())
+            print(f"✅ Token auto-refreshed successfully")
+        except Exception as e:
+            print(f"❌ Token auto-refresh failed: {e}")
+            raise ValueError(f"Token refresh failed: {str(e)}")
+    else:
+        print(f"✅ Token still valid (expires: {credentials.expiry})")
+    
+    return credentials
+
 @app.route('/api/auth/refresh', methods=['POST'])
 def refresh_access_token():
     """
@@ -351,18 +384,32 @@ def refresh_access_token():
         # This will automatically refresh the token
         credentials.refresh(Request())
         
-        print(f"✅ Token refreshed successfully")
+        print(f"✅ Token refreshed successfully (expires: {credentials.expiry})")
+        
+        # Calculate expiry timestamp
+        expiry_timestamp = int(credentials.expiry.timestamp() * 1000) if credentials.expiry else None
         
         return jsonify({
             "success": True,
             "access_token": credentials.token,
-            "expires_in": 3600  # Google tokens typically expire in 1 hour
+            "expires_in": 3600,  # Google tokens typically expire in 1 hour
+            "expiry_time": expiry_timestamp  # Unix timestamp in milliseconds
         })
         
     except Exception as e:
         print(f"❌ Token refresh error: {e}")
         import traceback
         traceback.print_exc()
+        
+        # Check if it's an invalid_grant error (revoked refresh token)
+        error_str = str(e).lower()
+        if 'invalid_grant' in error_str or 'token has been expired or revoked' in error_str:
+            return jsonify({
+                "success": False,
+                "error": "invalid_grant",
+                "message": "Refresh token has been revoked. Please login again."
+            }), 401
+        
         return jsonify({
             "success": False,
             "error": str(e),
@@ -479,7 +526,18 @@ def scan_emails():
                 "message": "Please sign in with Google to scan your emails"
             }), 401
         
-        print(f"✅ Valid credentials available")
+        # Auto-refresh token if expired before making API calls
+        try:
+            credentials = _ensure_valid_credentials(credentials)
+        except ValueError as e:
+            print(f"❌ Credential validation failed: {e}")
+            return jsonify({
+                "success": False,
+                "error": "Token expired and refresh failed",
+                "message": "Please login again"
+            }), 401
+        
+        print(f"✅ Valid credentials available and verified")
         
         # Process emails using the system
         if not email_system:
@@ -1017,10 +1075,15 @@ def delete_calendar_reminder(event_id):
                     "error": "Authentication required. Please sign in again."
                 }), 401
             
-            # Refresh token if expired
-            if credentials.expired and credentials.refresh_token:
-                credentials.refresh(Request())
-                session['credentials']['token'] = credentials.token
+            # Auto-refresh token if expired before making API calls
+            try:
+                credentials = _ensure_valid_credentials(credentials)
+            except ValueError as e:
+                print(f"❌ Credential validation failed: {e}")
+                return jsonify({
+                    "success": False,
+                    "error": "Token expired. Please login again."
+                }), 401
             
             # Build Calendar API service
             calendar_service = build('calendar', 'v3', credentials=credentials)
@@ -1144,10 +1207,17 @@ def get_upcoming_reminders():
                     "note": "Please sign in again to sync with Google Calendar"
                 }), 200
             
-            # Refresh token if expired
-            if credentials.expired and credentials.refresh_token:
-                credentials.refresh(Request())
-                session['credentials']['token'] = credentials.token
+            # Auto-refresh token if expired before making API calls
+            try:
+                credentials = _ensure_valid_credentials(credentials)
+            except ValueError as e:
+                print(f"❌ Credential validation failed: {e}")
+                return jsonify({
+                    "success": True,
+                    "upcoming_events": [],
+                    "total_count": 0,
+                    "note": "Token expired. Please login again."
+                }), 200
             
             # Build Calendar API service
             calendar_service = build('calendar', 'v3', credentials=credentials)

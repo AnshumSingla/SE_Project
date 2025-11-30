@@ -33,9 +33,11 @@ const LandingPage = () => {
         const mockCredential = {
           credential: "server_auth_token",
           userInfo: event.data.user,
-          accessToken: event.data.accessToken
+          accessToken: event.data.accessToken,
+          credentials: event.data.credentials  // Include full credentials with expiry_time
         }
         console.log('🔐 Calling login with credentials for:', event.data.user?.email)
+        console.log('⏱️  Token expiry time:', event.data.credentials?.expiry_time)
         window.removeEventListener('message', handleMessage)
         login(mockCredential)
       } else {

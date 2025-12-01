@@ -35,14 +35,37 @@ const UpcomingDeadlines = ({ events, onDeleteEvent }) => {
     const now = moment()
     const duration = moment.duration(eventDate.diff(now))
     
-    if (duration.asDays() >= 1) {
-      const days = Math.floor(duration.asDays())
+    const years = Math.floor(duration.asYears())
+    const months = Math.floor(duration.asMonths())
+    const days = Math.floor(duration.asDays())
+    const hours = Math.floor(duration.asHours())
+    const minutes = Math.floor(duration.asMinutes())
+    
+    // More human-readable time formatting
+    if (years >= 1) {
+      const remainingMonths = months % 12
+      if (remainingMonths > 0) {
+        return `${years} yr${years !== 1 ? 's' : ''}, ${remainingMonths} mo${remainingMonths !== 1 ? 's' : ''}`
+      }
+      return `${years} year${years !== 1 ? 's' : ''}`
+    } else if (months >= 1) {
+      const remainingDays = days - (months * 30)
+      if (remainingDays > 7) {
+        return `${months} mo${months !== 1 ? 's' : ''}, ${Math.floor(remainingDays / 7)} wk${Math.floor(remainingDays / 7) !== 1 ? 's' : ''}`
+      }
+      return `${months} month${months !== 1 ? 's' : ''}`
+    } else if (days >= 7) {
+      const weeks = Math.floor(days / 7)
+      const remainingDays = days % 7
+      if (remainingDays > 0) {
+        return `${weeks} wk${weeks !== 1 ? 's' : ''}, ${remainingDays} day${remainingDays !== 1 ? 's' : ''}`
+      }
+      return `${weeks} week${weeks !== 1 ? 's' : ''}`
+    } else if (days >= 1) {
       return `${days} day${days !== 1 ? 's' : ''}`
-    } else if (duration.asHours() >= 1) {
-      const hours = Math.floor(duration.asHours())
+    } else if (hours >= 1) {
       return `${hours} hour${hours !== 1 ? 's' : ''}`
     } else {
-      const minutes = Math.floor(duration.asMinutes())
       return `${minutes} minute${minutes !== 1 ? 's' : ''}`
     }
   }

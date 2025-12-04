@@ -265,12 +265,12 @@ const LandingPage = () => {
                   }}
                 >
                   <div className="bg-dark-500 rounded-lg p-6">
-                    {/* Thapar Email Notice */}
-                    <div className="bg-primary-500/10 border border-primary-500/30 rounded-lg p-3 mb-4">
-                      <p className="text-primary-400 text-sm text-center font-medium">
+                     {/* Thapar Email Notice */}
+                    <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 mb-4">
+                      <p className="text-red-400 text-sm text-center font-medium">
                         ⓘ Please use your Thapar email to sign in
                       </p>
-                      <p className="text-primary-400/70 text-xs text-center mt-1">
+                      <p className="text-red-400/70 text-xs text-center mt-1">
                         Only Thapar University emails are allowed to access this service
                       </p>
                     </div>

@@ -47,6 +47,8 @@ const HomePage = () => {
               title: event.title.trim(),
               start: new Date(event.start_time),
               end: new Date(event.start_time),
+              description: event.description,
+              extendedProperties: event.extendedProperties,
               resource: {
                 type: event.deadline_type,
                 urgency: event.urgency,
@@ -176,6 +178,8 @@ const HomePage = () => {
               title: event.title.trim(),
               start: new Date(event.start_time),
               end: new Date(event.start_time),
+              description: event.description,
+              extendedProperties: event.extendedProperties,
               resource: {
                 type: event.deadline_type,
                 urgency: event.urgency,
@@ -281,6 +285,8 @@ const HomePage = () => {
             title: event.title.trim(),
             start: new Date(event.start_time),
             end: new Date(event.start_time),
+            description: event.description,
+            extendedProperties: event.extendedProperties,
             resource: {
               type: event.deadline_type,
               urgency: event.urgency,

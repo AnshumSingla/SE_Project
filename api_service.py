@@ -600,10 +600,26 @@ def scan_emails():
                 skipped_count += 1
                 continue
             
-            # Skip duplicates already in Google Calendar
+            # Skip duplicates already in Google Calendar - improved matching
             subject = email_data.get('subject', '').strip().lower()
-            # Check if subject contains any existing calendar event title
-            is_duplicate = any(subject in existing or existing in subject for existing in existing_titles)
+            # Normalize subject: remove common prefixes, special chars
+            normalized_subject = subject.replace('fwd:', '').replace('re:', '').replace('📧', '').strip()
+            # Check multiple matching strategies for duplicates
+            is_duplicate = False
+            for existing in existing_titles:
+                normalized_existing = existing.replace('📧', '').strip()
+                # Exact match
+                if normalized_subject == normalized_existing:
+                    is_duplicate = True
+                    break
+                # Subject contained in existing event title
+                if len(normalized_subject) > 10 and normalized_subject in normalized_existing:
+                    is_duplicate = True
+                    break
+                # Existing event title contained in subject
+                if len(normalized_existing) > 10 and normalized_existing in normalized_subject:
+                    is_duplicate = True
+                    break
             if is_duplicate:
                 print(f"🔄 Skipping duplicate (already in calendar): {email_data.get('subject', '')[:50]}...")
                 duplicate_count += 1

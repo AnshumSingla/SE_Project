@@ -139,14 +139,29 @@ const UpcomingDeadlines = ({ events, onDeleteEvent }) => {
                   {event.title}
                 </h3>
                 
-                {(event.extendedProperties?.shared?.senderEmail || event.resource?.originalEmail) && (
-                  <div className="flex items-center space-x-1 text-xs text-text-secondary mb-2">
-                    <Mail className="w-3 h-3 flex-shrink-0" />
-                    <span className="truncate" title={event.extendedProperties?.shared?.senderEmail || event.resource?.originalEmail?.from || event.resource?.originalEmail?.sender}>
-                      {event.extendedProperties?.shared?.senderEmail || event.resource?.originalEmail?.from || event.resource?.originalEmail?.sender}
-                    </span>
-                  </div>
-                )}
+                {(() => {
+                  // Try multiple sources for sender email
+                  let senderEmail = event.extendedProperties?.shared?.senderEmail ||
+                                   event.resource?.originalEmail?.from ||
+                                   event.resource?.originalEmail?.sender;
+                  
+                  // Extract from description if not found (format: "From: email@example.com")
+                  if (!senderEmail && event.description) {
+                    const fromMatch = event.description.match(/From:\s*([^\n<]+)/i);
+                    if (fromMatch) {
+                      senderEmail = fromMatch[1].trim();
+                    }
+                  }
+                  
+                  return senderEmail ? (
+                    <div className="flex items-center space-x-1 text-xs text-text-secondary mb-2">
+                      <Mail className="w-3 h-3 flex-shrink-0" />
+                      <span className="truncate" title={senderEmail}>
+                        {senderEmail}
+                      </span>
+                    </div>
+                  ) : null;
+                })()}
                 
                 <div className="flex items-center space-x-4 text-sm">
                   <div className="flex items-center space-x-1 text-text-secondary">

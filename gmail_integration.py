@@ -132,6 +132,14 @@ class GmailIntegrator:
                     
                     email_data = self._parse_email_message(msg)
                     if email_data:
+                        # Skip Google Calendar notifications to avoid duplicates
+                        sender = email_data.get('sender', '').lower()
+                        if 'calendar-notification@google.com' in sender:
+                            print(f"   ⏭️ Skipping Google Calendar notification email")
+                            continue
+                        if 'noreply@google.com' in sender and 'calendar' in email_data.get('subject', '').lower():
+                            print(f"   ⏭️ Skipping Google Calendar email")
+                            continue
                         emails.append(email_data)
                     
                     # Progress indicator

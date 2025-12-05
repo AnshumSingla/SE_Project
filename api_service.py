@@ -702,7 +702,14 @@ def scan_emails():
                                     {'method': 'popup', 'minutes': 60}      # 1 hour
                                 ]
                             },
-                            'colorId': '11'  # Red for urgency
+                            'colorId': '11',  # Red for urgency
+                            'extendedProperties': {
+                                'shared': {
+                                    'senderEmail': result['sender'],
+                                    'urgency': result.get('urgency', 'medium'),
+                                    'type': result.get('type', 'other')
+                                }
+                            }
                         }
                         
                         event = calendar_service.events().insert(

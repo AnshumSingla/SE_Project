@@ -9,6 +9,11 @@ const UpcomingDeadlines = ({ events, onDeleteEvent }) => {
     .filter(event => new Date(event.start) > now)
     .sort((a, b) => new Date(a.start) - new Date(b.start))
     .slice(0, 6) // Show top 6 upcoming events
+  
+  // Debug: log event structure
+  if (upcomingEvents.length > 0) {
+    console.log('Sample event data:', upcomingEvents[0])
+  }
 
   const getUrgencyColor = (urgency) => {
     const colors = {
@@ -115,18 +120,18 @@ const UpcomingDeadlines = ({ events, onDeleteEvent }) => {
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="flex items-center space-x-3 mb-2">
-                  <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs border ${getUrgencyColor(event.resource?.urgency)}`}>
-                    {getUrgencyIcon(event.resource?.urgency)}
-                    <span className="capitalize">{event.resource?.urgency || 'medium'}</span>
+                  <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs border ${getUrgencyColor(event.extendedProperties?.shared?.urgency || event.resource?.urgency)}`}>
+                    {getUrgencyIcon(event.extendedProperties?.shared?.urgency || event.resource?.urgency)}
+                    <span className="capitalize">{event.extendedProperties?.shared?.urgency || event.resource?.urgency || 'medium'}</span>
                   </div>
                   
                   <span className={`px-2 py-1 rounded-full text-xs ${
-                    event.resource?.type === 'application' ? 'bg-blue-500/20 text-blue-400' :
-                    event.resource?.type === 'interview' ? 'bg-purple-500/20 text-purple-400' :
-                    event.resource?.type === 'assessment' ? 'bg-orange-500/20 text-orange-400' :
+                    (event.extendedProperties?.shared?.type || event.resource?.type) === 'application' ? 'bg-blue-500/20 text-blue-400' :
+                    (event.extendedProperties?.shared?.type || event.resource?.type) === 'interview' ? 'bg-purple-500/20 text-purple-400' :
+                    (event.extendedProperties?.shared?.type || event.resource?.type) === 'assessment' ? 'bg-orange-500/20 text-orange-400' :
                     'bg-primary-500/20 text-primary-400'
                   }`}>
-                    {event.resource?.type || 'reminder'}
+                    {event.extendedProperties?.shared?.type || event.resource?.type || 'reminder'}
                   </span>
                 </div>
                 
@@ -134,11 +139,11 @@ const UpcomingDeadlines = ({ events, onDeleteEvent }) => {
                   {event.title}
                 </h3>
                 
-                {event.resource?.originalEmail && (
+                {(event.extendedProperties?.shared?.senderEmail || event.resource?.originalEmail) && (
                   <div className="flex items-center space-x-1 text-xs text-text-secondary mb-2">
                     <Mail className="w-3 h-3 flex-shrink-0" />
-                    <span className="truncate" title={event.resource.originalEmail.from || event.resource.originalEmail.sender}>
-                      {event.resource.originalEmail.from || event.resource.originalEmail.sender}
+                    <span className="truncate" title={event.extendedProperties?.shared?.senderEmail || event.resource?.originalEmail?.from || event.resource?.originalEmail?.sender}>
+                      {event.extendedProperties?.shared?.senderEmail || event.resource?.originalEmail?.from || event.resource?.originalEmail?.sender}
                     </span>
                   </div>
                 )}

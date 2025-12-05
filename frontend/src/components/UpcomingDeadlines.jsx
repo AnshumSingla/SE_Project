@@ -136,8 +136,10 @@ const UpcomingDeadlines = ({ events, onDeleteEvent }) => {
                 
                 {event.resource?.originalEmail && (
                   <div className="flex items-center space-x-1 text-xs text-text-secondary mb-2">
-                    <Mail className="w-3 h-3" />
-                    <span>{event.resource.originalEmail.sender}</span>
+                    <Mail className="w-3 h-3 flex-shrink-0" />
+                    <span className="truncate" title={event.resource.originalEmail.from || event.resource.originalEmail.sender}>
+                      {event.resource.originalEmail.from || event.resource.originalEmail.sender}
+                    </span>
                   </div>
                 )}
                 

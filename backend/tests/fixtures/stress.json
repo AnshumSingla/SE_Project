@@ -1,0 +1,630 @@
+{
+ "_comment": "Stress set: varied and deliberately awkward synthetic mails, written AFTER the extractor and deliberately including cases it did not yet handle. Once the extractor is tuned on them they stop being a blind test; add fresh mails (ideally real) to keep measuring generalisation.",
+ "emails": [
+  {
+   "id": "st_tomorrow",
+   "source": "synthetic-stress",
+   "now": "2026-10-05T09:00:00+05:30",
+   "note": "relative date: tomorrow",
+   "email": {
+    "subject": "Reminder: assignment submission",
+    "sender": "Someone <someone@example.edu>",
+    "to": "students@example.edu",
+    "labels": [
+     "INBOX"
+    ],
+    "parts": [
+     {
+      "mimeType": "text/plain",
+      "text": "Please submit the assignment by tomorrow 5 PM. Late submissions will not be accepted."
+     }
+    ],
+    "attachments": []
+   },
+   "expected": {
+    "job_related": true,
+    "audience": "broadcast",
+    "events": [
+     {
+      "kind": "event",
+      "date": "2026-10-06",
+      "start": "17:00"
+     }
+    ],
+    "profile_effect": "show"
+   }
+  },
+  {
+   "id": "st_next_monday",
+   "source": "synthetic-stress",
+   "now": "2026-10-01T09:00:00+05:30",
+   "note": "relative: next <weekday>; received Thursday",
+   "email": {
+    "subject": "Interview slot",
+    "sender": "Someone <someone@example.edu>",
+    "to": "students@example.edu",
+    "labels": [
+     "INBOX"
+    ],
+    "parts": [
+     {
+      "mimeType": "text/plain",
+      "text": "Your interview is scheduled for next Monday at 11 AM. Please join 10 minutes early."
+     }
+    ],
+    "attachments": []
+   },
+   "expected": {
+    "job_related": true,
+    "audience": "broadcast",
+    "events": [
+     {
+      "kind": "event",
+      "date": "2026-10-05",
+      "start": "11:00"
+     }
+    ],
+    "profile_effect": "show"
+   }
+  },
+  {
+   "id": "st_apostrophe_year",
+   "source": "synthetic-stress",
+   "now": "2026-10-01T09:00:00+05:30",
+   "note": "Oct'26 year form + weekday check",
+   "email": {
+    "subject": "Registration closing",
+    "sender": "Someone <someone@example.edu>",
+    "to": "students@example.edu",
+    "labels": [
+     "INBOX"
+    ],
+    "parts": [
+     {
+      "mimeType": "text/plain",
+      "text": "Registrations close on 15th Oct'26 (Thursday) at 11:59 PM."
+     }
+    ],
+    "attachments": []
+   },
+   "expected": {
+    "job_related": true,
+    "audience": "broadcast",
+    "events": [
+     {
+      "kind": "event",
+      "date": "2026-10-15",
+      "start": "23:59"
+     }
+    ],
+    "profile_effect": "show"
+   }
+  },
+  {
+   "id": "st_multiday_range",
+   "source": "synthetic-stress",
+   "now": "2026-09-25T09:00:00+05:30",
+   "note": "multi-day range is ONE event starting 5 Oct, not two",
+   "email": {
+    "subject": "Hackathon announcement",
+    "sender": "Someone <someone@example.edu>",
+    "to": "students@example.edu",
+    "labels": [
+     "INBOX"
+    ],
+    "parts": [
+     {
+      "mimeType": "text/plain",
+      "text": "The hackathon will run from 5 Oct to 7 Oct 2026 at the main auditorium."
+     }
+    ],
+    "attachments": []
+   },
+   "expected": {
+    "job_related": true,
+    "audience": "broadcast",
+    "events": [
+     {
+      "kind": "event",
+      "date": "2026-10-05",
+      "start": null
+     }
+    ],
+    "profile_effect": "show"
+   }
+  },
+  {
+   "id": "st_month_day_range",
+   "source": "synthetic-stress",
+   "now": "2026-09-25T09:00:00+05:30",
+   "note": "'Oct 5-7' range",
+   "email": {
+    "subject": "Workshop dates",
+    "sender": "Someone <someone@example.edu>",
+    "to": "students@example.edu",
+    "labels": [
+     "INBOX"
+    ],
+    "parts": [
+     {
+      "mimeType": "text/plain",
+      "text": "Workshop: Oct 5-7, 2026, 10:00 AM daily."
+     }
+    ],
+    "attachments": []
+   },
+   "expected": {
+    "job_related": true,
+    "audience": "broadcast",
+    "events": [
+     {
+      "kind": "event",
+      "date": "2026-10-05",
+      "start": "10:00"
+     }
+    ],
+    "profile_effect": "show"
+   }
+  },
+  {
+   "id": "st_numeric_dash",
+   "source": "synthetic-stress",
+   "now": "2026-10-01T09:00:00+05:30",
+   "note": "dd-mm-yyyy",
+   "email": {
+    "subject": "Fee notice",
+    "sender": "Someone <someone@example.edu>",
+    "to": "students@example.edu",
+    "labels": [
+     "INBOX"
+    ],
+    "parts": [
+     {
+      "mimeType": "text/plain",
+      "text": "Payment of the tuition fee is due 31-10-2026. A late fee applies afterwards."
+     }
+    ],
+    "attachments": []
+   },
+   "expected": {
+    "job_related": true,
+    "audience": "broadcast",
+    "events": [
+     {
+      "kind": "event",
+      "date": "2026-10-31",
+      "start": null
+     }
+    ],
+    "profile_effect": "show"
+   }
+  },
+  {
+   "id": "st_eod",
+   "source": "synthetic-stress",
+   "now": "2026-10-01T09:00:00+05:30",
+   "note": "EOD",
+   "email": {
+    "subject": "Form submission",
+    "sender": "Someone <someone@example.edu>",
+    "to": "students@example.edu",
+    "labels": [
+     "INBOX"
+    ],
+    "parts": [
+     {
+      "mimeType": "text/plain",
+      "text": "Last date: 02 Nov 2026 EOD."
+     }
+    ],
+    "attachments": []
+   },
+   "expected": {
+    "job_related": true,
+    "audience": "broadcast",
+    "events": [
+     {
+      "kind": "event",
+      "date": "2026-11-02",
+      "start": null
+     }
+    ],
+    "profile_effect": "show"
+   }
+  },
+  {
+   "id": "st_multi_row_table",
+   "source": "synthetic-stress",
+   "now": "2026-10-01T09:00:00+05:30",
+   "note": "three dated rows",
+   "email": {
+    "subject": "Campus Details || Acme || Rounds",
+    "sender": "Someone <someone@example.edu>",
+    "to": "students@example.edu",
+    "labels": [
+     "INBOX"
+    ],
+    "parts": [
+     {
+      "mimeType": "text/plain",
+      "text": "Dear Students,\n\nRound\tDate\tTime\nOnline Test\t12-Oct-26\t10:00 AM\nTechnical Interview\t14-Oct-26\t2:00 PM\nHR Interview\t15-Oct-26\t11:00 AM\n\nRegards"
+     }
+    ],
+    "attachments": []
+   },
+   "expected": {
+    "job_related": true,
+    "audience": "broadcast",
+    "events": [
+     {
+      "kind": "event",
+      "date": "2026-10-12",
+      "start": "10:00"
+     },
+     {
+      "kind": "event",
+      "date": "2026-10-14",
+      "start": "14:00"
+     },
+     {
+      "kind": "event",
+      "date": "2026-10-15",
+      "start": "11:00"
+     }
+    ],
+    "profile_effect": "show"
+   }
+  },
+  {
+   "id": "st_webinar_range",
+   "source": "synthetic-stress",
+   "now": "2026-10-01T09:00:00+05:30",
+   "note": "ordinal + time range + tz",
+   "email": {
+    "subject": "Webinar invite",
+    "sender": "Someone <someone@example.edu>",
+    "to": "students@example.edu",
+    "labels": [
+     "INBOX"
+    ],
+    "parts": [
+     {
+      "mimeType": "text/plain",
+      "text": "Join our webinar on 3rd Oct 2026, 6 PM - 7 PM IST. Link: https://x.example/w"
+     }
+    ],
+    "attachments": []
+   },
+   "expected": {
+    "job_related": true,
+    "audience": "broadcast",
+    "events": [
+     {
+      "kind": "event",
+      "date": "2026-10-03",
+      "start": "18:00"
+     }
+    ],
+    "profile_effect": "show"
+   }
+  },
+  {
+   "id": "st_weekday_repair",
+   "source": "synthetic-stress",
+   "now": "2026-10-01T09:00:00+05:30",
+   "note": "10/5 is ambiguous; 'Monday' selects 5 Oct over 10 May",
+   "email": {
+    "subject": "Exam schedule",
+    "sender": "Someone <someone@example.edu>",
+    "to": "students@example.edu",
+    "labels": [
+     "INBOX"
+    ],
+    "parts": [
+     {
+      "mimeType": "text/plain",
+      "text": "The exam is on Monday 10/5/2026 at 9:30 AM."
+     }
+    ],
+    "attachments": []
+   },
+   "expected": {
+    "job_related": true,
+    "audience": "broadcast",
+    "events": [
+     {
+      "kind": "event",
+      "date": "2026-10-05",
+      "start": "09:30"
+     }
+    ],
+    "profile_effect": "show"
+   }
+  },
+  {
+   "id": "st_subject_only",
+   "source": "synthetic-stress",
+   "now": "2026-10-01T09:00:00+05:30",
+   "note": "date only in subject",
+   "email": {
+    "subject": "Project submission - 20 Nov 2026",
+    "sender": "Someone <someone@example.edu>",
+    "to": "students@example.edu",
+    "labels": [
+     "INBOX"
+    ],
+    "parts": [
+     {
+      "mimeType": "text/plain",
+      "text": "Please find the details on the portal."
+     }
+    ],
+    "attachments": []
+   },
+   "expected": {
+    "job_related": true,
+    "audience": "broadcast",
+    "events": [
+     {
+      "kind": "event",
+      "date": "2026-11-20",
+      "start": null
+     }
+    ],
+    "profile_effect": "show"
+   }
+  },
+  {
+   "id": "st_footer_noise",
+   "source": "synthetic-stress",
+   "now": "2026-10-01T09:00:00+05:30",
+   "note": "sent-on / copyright dates ignored",
+   "email": {
+    "subject": "Internship opening",
+    "sender": "Someone <someone@example.edu>",
+    "to": "students@example.edu",
+    "labels": [
+     "INBOX"
+    ],
+    "parts": [
+     {
+      "mimeType": "text/plain",
+      "text": "Apply by Oct 20 through our portal.\n\n(c) 2026 Acme Ltd. All rights reserved. Sent on 1 Oct 2026."
+     }
+    ],
+    "attachments": []
+   },
+   "expected": {
+    "job_related": true,
+    "audience": "broadcast",
+    "events": [
+     {
+      "kind": "event",
+      "date": "2026-10-20",
+      "start": null
+     }
+    ],
+    "profile_effect": "show"
+   }
+  },
+  {
+   "id": "st_past_and_future",
+   "source": "synthetic-stress",
+   "now": "2026-10-01T09:00:00+05:30",
+   "note": "past date before the received date ignored",
+   "email": {
+    "subject": "Drive update",
+    "sender": "Someone <someone@example.edu>",
+    "to": "students@example.edu",
+    "labels": [
+     "INBOX"
+    ],
+    "parts": [
+     {
+      "mimeType": "text/plain",
+      "text": "The previous drive was held on 12 Sep 2026. The next drive will be held on 10 Oct 2026 at 10:00 AM."
+     }
+    ],
+    "attachments": []
+   },
+   "expected": {
+    "job_related": true,
+    "audience": "broadcast",
+    "events": [
+     {
+      "kind": "event",
+      "date": "2026-10-10",
+      "start": "10:00"
+     }
+    ],
+    "profile_effect": "show"
+   }
+  },
+  {
+   "id": "st_open_and_close",
+   "source": "synthetic-stress",
+   "now": "2026-09-25T09:00:00+05:30",
+   "note": "'open on' is not a deadline",
+   "email": {
+    "subject": "Applications",
+    "sender": "Someone <someone@example.edu>",
+    "to": "students@example.edu",
+    "labels": [
+     "INBOX"
+    ],
+    "parts": [
+     {
+      "mimeType": "text/plain",
+      "text": "Applications open on 1 Oct and close on 20 Oct 2026."
+     }
+    ],
+    "attachments": []
+   },
+   "expected": {
+    "job_related": true,
+    "audience": "broadcast",
+    "events": [
+     {
+      "kind": "event",
+      "date": "2026-10-20",
+      "start": null
+     }
+    ],
+    "profile_effect": "show"
+   }
+  },
+  {
+   "id": "st_24h_time_first",
+   "source": "synthetic-stress",
+   "now": "2026-10-01T09:00:00+05:30",
+   "note": "time precedes date",
+   "email": {
+    "subject": "Test notice",
+    "sender": "Someone <someone@example.edu>",
+    "to": "students@example.edu",
+    "labels": [
+     "INBOX"
+    ],
+    "parts": [
+     {
+      "mimeType": "text/plain",
+      "text": "Test at 14:30 on 12 Oct 2026 in Lab 3."
+     }
+    ],
+    "attachments": []
+   },
+   "expected": {
+    "job_related": true,
+    "audience": "broadcast",
+    "events": [
+     {
+      "kind": "event",
+      "date": "2026-10-12",
+      "start": "14:30"
+     }
+    ],
+    "profile_effect": "show"
+   }
+  },
+  {
+   "id": "st_endash_range",
+   "source": "synthetic-stress",
+   "now": "2026-10-01T09:00:00+05:30",
+   "note": "en dash range",
+   "email": {
+    "subject": "Session",
+    "sender": "Someone <someone@example.edu>",
+    "to": "students@example.edu",
+    "labels": [
+     "INBOX"
+    ],
+    "parts": [
+     {
+      "mimeType": "text/plain",
+      "text": "Session on 9 Oct 2026, 10:00–11:30 AM."
+     }
+    ],
+    "attachments": []
+   },
+   "expected": {
+    "job_related": true,
+    "audience": "broadcast",
+    "events": [
+     {
+      "kind": "event",
+      "date": "2026-10-09",
+      "start": "10:00"
+     }
+    ],
+    "profile_effect": "show"
+   }
+  },
+  {
+   "id": "st_within_days",
+   "source": "synthetic-stress",
+   "now": "2026-10-01T09:00:00+05:30",
+   "note": "relative deadline: within N days",
+   "email": {
+    "subject": "Action needed",
+    "sender": "Someone <someone@example.edu>",
+    "to": "students@example.edu",
+    "labels": [
+     "INBOX"
+    ],
+    "parts": [
+     {
+      "mimeType": "text/plain",
+      "text": "Please confirm your attendance within 7 days."
+     }
+    ],
+    "attachments": []
+   },
+   "expected": {
+    "job_related": true,
+    "audience": "broadcast",
+    "events": [
+     {
+      "kind": "event",
+      "date": "2026-10-08",
+      "start": null
+     }
+    ],
+    "profile_effect": "show"
+   }
+  },
+  {
+   "id": "st_no_dates",
+   "source": "synthetic-stress",
+   "now": "2026-10-01T09:00:00+05:30",
+   "note": "nothing to extract",
+   "email": {
+    "subject": "Thanks",
+    "sender": "Someone <someone@example.edu>",
+    "to": "students@example.edu",
+    "labels": [
+     "INBOX"
+    ],
+    "parts": [
+     {
+      "mimeType": "text/plain",
+      "text": "Thank you for attending the session yesterday. We will get back to you soon."
+     }
+    ],
+    "attachments": []
+   },
+   "expected": {
+    "job_related": true,
+    "audience": "broadcast",
+    "events": [],
+    "profile_effect": "show"
+   }
+  },
+  {
+   "id": "st_version_numbers",
+   "source": "synthetic-stress",
+   "now": "2026-10-01T09:00:00+05:30",
+   "note": "numbers that look like dates",
+   "email": {
+    "subject": "Release notes",
+    "sender": "Someone <someone@example.edu>",
+    "to": "students@example.edu",
+    "labels": [
+     "INBOX"
+    ],
+    "parts": [
+     {
+      "mimeType": "text/plain",
+      "text": "Version 10.15.3 of the app is out. Rooms 10-15 are closed. Costs Rs 12.05."
+     }
+    ],
+    "attachments": []
+   },
+   "expected": {
+    "job_related": true,
+    "audience": "broadcast",
+    "events": [],
+    "profile_effect": "show"
+   }
+  }
+ ]
+}

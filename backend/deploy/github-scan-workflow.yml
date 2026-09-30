@@ -1,0 +1,31 @@
+# Triggers the backend's background scan so new mails reach your calendar
+# without you opening the website. Needs two repository secrets:
+#   BACKEND_URL  e.g. https://your-backend.vercel.app   (no trailing slash)
+#   CRON_SECRET  the same value as the backend's CRON_SECRET
+name: scan-mail
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"      # every 15 minutes (GitHub may delay runs by a few minutes)
+  workflow_dispatch: {}          # "Run workflow" button for testing
+
+concurrency:
+  group: scan-mail
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Call /api/cron/scan
+        env:
+          BACKEND_URL: ${{ secrets.BACKEND_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          test -n "$BACKEND_URL" && test -n "$CRON_SECRET"
+          code=$(curl -sS -m 120 -o out.json -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer $CRON_SECRET" "$BACKEND_URL/api/cron/scan")
+          cat out.json; echo
+          test "$code" = "200"

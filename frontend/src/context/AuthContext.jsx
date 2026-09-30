@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { googleLogout } from '@react-oauth/google'
 import toast from 'react-hot-toast'
 
 const AuthContext = createContext()
@@ -13,156 +12,66 @@ export const useAuth = () => {
   return context
 }
 
+const STORAGE_KEY = 'jobReminderUser'
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000').replace(/\/$/, '')
+
+const readStoredUser = () => {
+  try {
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null')
+    // Only accept the current shape: an identity plus the signed API token.
+    return stored?.apiToken && stored?.email ? stored : null
+  } catch {
+    return null
+  }
+}
+
 export const AuthProvider = ({ children }) => {
   const navigate = useNavigate()
-  // Initialize user from localStorage immediately to prevent flash
-  const [user, setUser] = useState(() => {
-    try {
-      const storedUser = localStorage.getItem('jobReminderUser')
-      if (storedUser) {
-        const parsedUser = JSON.parse(storedUser)
-        console.log('🔍 AuthContext: User loaded from localStorage on init:', parsedUser.email)
-        return parsedUser
-      }
-    } catch (error) {
-      console.error('❌ Error parsing stored user data:', error)
-      localStorage.removeItem('jobReminderUser')
-    }
-    return null
-  })
+  const [user, setUser] = useState(readStoredUser)
   const [loading, setLoading] = useState(false)
 
-  // Background token refresh - check every 10 minutes
-  useEffect(() => {
-    console.log('✅ AuthContext mounted, user:', user?.email || 'None')
-    
-    const refreshTokenIfNeeded = async () => {
-      if (!user?.credentials?.refresh_token) return
-      
-      const now = Date.now()
-      const expiryTime = user.credentials.expiry_time || 0
-      const minutesUntilExpiry = (expiryTime - now) / (1000 * 60)
-      
-      console.log(`⏱️  Token expires in ${Math.round(minutesUntilExpiry)} minutes`)
-      
-      // Refresh if expiring within 5 minutes (300000ms)
-      if (minutesUntilExpiry < 5) {
-        console.log('🔄 Token expiring soon, refreshing proactively...')
-        try {
-          const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/auth/refresh`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              refresh_token: user.credentials.refresh_token,
-              client_id: user.credentials.client_id,
-              client_secret: user.credentials.client_secret
-            })
-          })
-          
-          const data = await response.json()
-          
-          // Handle invalid_grant error (revoked refresh token)
-          if (!data.success && data.error === 'invalid_grant') {
-            console.error('❌ Refresh token revoked - logging out')
-            toast.error('Session expired. Please login again.')
-            localStorage.removeItem('jobReminderUser')
-            localStorage.removeItem('lastSync')
-            setUser(null)
-            navigate('/')
-            return
-          }
-          
-          if (data.success) {
-            const updatedUser = {
-              ...user,
-              credentials: {
-                ...user.credentials,
-                token: data.access_token,
-                expiry_time: data.expiry_time
-              },
-              accessToken: data.access_token
-            }
-            setUser(updatedUser)
-            localStorage.setItem('jobReminderUser', JSON.stringify(updatedUser))
-            console.log('✅ Token refreshed proactively')
-          }
-        } catch (error) {
-          console.error('⚠️ Proactive token refresh failed:', error)
-        }
-      }
-    }
-    
-    // Check immediately on mount
-    refreshTokenIfNeeded()
-    
-    // Then check every 10 minutes
-    const interval = setInterval(refreshTokenIfNeeded, 10 * 60 * 1000)
-    
-    return () => clearInterval(interval)
-  }, [user?.credentials?.refresh_token, user?.credentials?.expiry_time, navigate])
+  const clearSession = () => {
+    localStorage.removeItem(STORAGE_KEY)
+    localStorage.removeItem('lastSync')
+    setUser(null)
+  }
 
-  const login = async (credentialResponse) => {
+  // A token can expire or stop being valid (e.g. the owner changed): check it once on load.
+  useEffect(() => {
+    if (!user?.apiToken) return
+    let cancelled = false
+    fetch(`${API_BASE_URL}/api/auth/me`, { headers: { Authorization: `Bearer ${user.apiToken}` } })
+      .then((res) => {
+        if (res.status === 401 && !cancelled) {
+          clearSession()
+          navigate('/')
+        }
+      })
+      .catch(() => {}) // offline: keep the session, requests will fail visibly
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // `result` is what the backend's sign-in popup posted: { user, apiToken }.
+  const login = async (result) => {
     try {
       setLoading(true)
-      
-      // Handle server-side OAuth
-      if (credentialResponse.credential === "server_auth_token") {
-        const userInfo = credentialResponse.userInfo || {}
-        const userData = {
-          id: userInfo.sub || 'authenticated_user_456',
-          email: userInfo.email || 'user@gmail.com',
-          name: userInfo.name || 'Gmail User',
-          picture: userInfo.picture || 'https://via.placeholder.com/96x96/00FF00/FFFFFF?text=\u2713',
-          token: 'server_auth_token',
-          accessToken: credentialResponse.accessToken || 'demo_access_token',
-          credentials: credentialResponse.credentials || null,
-          loginTime: new Date().toISOString(),
-          isDemoMode: false,
-          hasGmailAccess: true
-        }
-        
-        console.log('💾 AuthContext: Saving user to localStorage:', userData.email)
-        setUser(userData)
-        localStorage.setItem('jobReminderUser', JSON.stringify(userData))
-        console.log('✅ AuthContext: User saved, navigating to dashboard...')
-        toast.success(`Welcome ${userData.name}! Gmail access enabled 📧`)
-        
-        // Use setTimeout to ensure state updates before navigation
-        setTimeout(() => {
-          navigate('/dashboard')
-        }, 100)
-        return
-      }
-      
-      // Decode the JWT token to get user info
-      const token = credentialResponse.credential
-      const base64Url = token.split('.')[1]
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
-      const jsonPayload = decodeURIComponent(
-        atob(base64)
-          .split('')
-          .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-          .join('')
-      )
-      
-      const userInfo = JSON.parse(jsonPayload)
-      
+      const info = result?.user || {}
+      if (!result?.apiToken || !info.email) throw new Error('Incomplete sign-in result')
       const userData = {
-        id: userInfo.sub,
-        email: userInfo.email,
-        name: userInfo.name,
-        picture: userInfo.picture,
-        token: token,
-        loginTime: new Date().toISOString(),
-        isDemoMode: false
+        id: info.sub || info.email,
+        email: info.email,
+        name: info.name || info.email,
+        picture: info.picture || '',
+        apiToken: result.apiToken,
+        loginTime: new Date().toISOString()
       }
-      
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(userData))
       setUser(userData)
-      localStorage.setItem('jobReminderUser', JSON.stringify(userData))
-      
-      toast.success(`Welcome back, ${userData.name}!`)
+      toast.success(`Welcome ${userData.name}!`)
       navigate('/dashboard')
-      
     } catch (error) {
       console.error('Login error:', error)
       toast.error('Authentication failed. Please try again.')
@@ -172,28 +81,10 @@ export const AuthProvider = ({ children }) => {
   }
 
   const logout = () => {
-    try {
-      googleLogout()
-      setUser(null)
-      localStorage.removeItem('jobReminderUser')
-      localStorage.removeItem('lastSync') // Clear sync timestamp on logout
-      toast.success('Successfully logged out')
-    } catch (error) {
-      console.error('Logout error:', error)
-      toast.error('Error during logout')
-    }
+    clearSession()
+    toast.success('Successfully logged out')
+    navigate('/')
   }
 
-  const value = {
-    user,
-    login,
-    logout,
-    loading
-  }
-
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  )
+  return <AuthContext.Provider value={{ user, login, logout, loading }}>{children}</AuthContext.Provider>
 }

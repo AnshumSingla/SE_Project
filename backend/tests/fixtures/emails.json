@@ -1,0 +1,320 @@
+{
+ "_comment": "Labelled emails for the extraction/relevance eval. 'real' entries come from the user; 'synthetic' ones are written to cover gaps and should be replaced by real mails over time. now = the moment the mail is processed.",
+ "emails": [
+  {
+   "id": "real_thapar_exl_aptitude",
+   "source": "real (from user screenshot)",
+   "now": "2026-09-14T10:00:00+05:30",
+   "note": "REAL mail (user screenshots). Subject carries the date without a year ('17 September') and agrees with the body's 17-Sep-26: both must resolve to the same event, not create two. Body is a table with a dd-Mon-yy date and a time RANGE (7:30 PM-8:15 PM). 'Interviews: To be shared later' must NOT become an event (pending). The attached EXL_TIET.xlsx is the shortlist, so whether the aptitude test applies to a given student depends on whether they are on it: show the event, never hide it. Sent to a batch mailing list (campusnotice2027).",
+   "email": {
+    "subject": "Campus Details || EXL || 17 September",
+    "sender": "Placements Thapar <placements@thapar.edu>",
+    "to": "campusnotice2027",
+    "labels": [
+     "INBOX"
+    ],
+    "parts": [
+     {
+      "mimeType": "text/plain",
+      "text": "Dear Students,\r\n\r\nThe EXL Process has been scheduled. Please find the process details below.\r\n\r\nShortlist is Attached\r\n\r\nProcess Description\tDate\tDay\tTime\tMode\r\nAptitude Test\t17-Sep-26\tThursday\t7:30 PM-8:15 PM\tVirtual\r\nInterviews\tTo be shared later\r\n\r\nRegards,\r\nPlacement Team"
+     },
+     {
+      "mimeType": "text/html",
+      "text": "<div><p>Dear Students,</p><p>The EXL Process has been scheduled. Please find the process details below.</p><p><b>Shortlist is Attached</b></p><table><tr><td>Process Description</td><td>Date</td><td>Day</td><td>Time</td><td>Mode</td></tr><tr><td>Aptitude Test</td><td>17-Sep-26</td><td>Thursday</td><td>7:30 PM-8:15 PM</td><td>Virtual</td></tr><tr><td>Interviews</td><td>To be shared later</td><td></td><td></td><td></td></tr></table><p>Regards,<br>Placement Team</p></div>"
+     }
+    ],
+    "attachments": [
+     "EXL_TIET.xlsx"
+    ],
+    "subject_assumed": false,
+    "to_is_group": true
+   },
+   "expected": {
+    "job_related": true,
+    "audience": "broadcast",
+    "events": [
+     {
+      "kind": "assessment",
+      "title_has": "Aptitude",
+      "date": "2026-09-17",
+      "start": "19:30",
+      "end": "20:15",
+      "mode": "virtual"
+     }
+    ],
+    "profile_effect": "show",
+    "attachment_hint": "shortlist",
+    "subject_date": {
+     "text": "17 September",
+     "year_missing": true,
+     "agrees_with_body": true
+    }
+   }
+  },
+  {
+   "id": "syn_free_text_oa",
+   "source": "synthetic",
+   "now": "2026-10-05T09:00:00+05:30",
+   "note": "Free text, ordinal date, two events, year only on one of them.",
+   "email": {
+    "subject": "Acme Technologies - Online Assessment for 2027 batch",
+    "sender": "Campus Team <campus@acme-tech.example>",
+    "to": "students2027@univ.example",
+    "labels": [
+     "INBOX"
+    ],
+    "parts": [
+     {
+      "mimeType": "text/plain",
+      "text": "Hi all,\n\nAcme Technologies will conduct its Online Assessment on 20th October 2026 from 10:00 AM to 12:00 PM IST.\nPlease register before 18 Oct, 5 PM at the link below.\nhttps://acme-tech.example/register\n\nRegards,\nCampus Team"
+     }
+    ],
+    "attachments": [],
+    "subject_assumed": false
+   },
+   "expected": {
+    "job_related": true,
+    "audience": "broadcast",
+    "events": [
+     {
+      "kind": "assessment",
+      "date": "2026-10-20",
+      "start": "10:00",
+      "end": "12:00"
+     },
+     {
+      "kind": "registration",
+      "date": "2026-10-18",
+      "start": "17:00"
+     }
+    ],
+    "profile_effect": "show"
+   }
+  },
+  {
+   "id": "syn_dmy_slash",
+   "source": "synthetic",
+   "now": "2026-10-01T09:00:00+05:30",
+   "note": "dd/mm/yyyy must be read as 5 Nov (India), not 11 May.",
+   "email": {
+    "subject": "Fee payment reminder",
+    "sender": "Accounts <accounts@univ.example>",
+    "to": "students@univ.example",
+    "labels": [
+     "INBOX"
+    ],
+    "parts": [
+     {
+      "mimeType": "text/plain",
+      "text": "Dear Student,\n\nThe last date to submit the examination form is 05/11/2026. Late forms will not be accepted."
+     }
+    ],
+    "attachments": [],
+    "subject_assumed": false
+   },
+   "expected": {
+    "job_related": false,
+    "audience": "broadcast",
+    "events": [
+     {
+      "kind": "deadline",
+      "date": "2026-11-05"
+     }
+    ],
+    "profile_effect": "show"
+   }
+  },
+  {
+   "id": "syn_two_dates",
+   "source": "synthetic",
+   "now": "2026-09-20T09:00:00+05:30",
+   "note": "Programme start date is NOT a deadline; only the apply-by date is an event.",
+   "email": {
+    "subject": "Summer Internship 2027 - Acme",
+    "sender": "Careers <careers@acme-tech.example>",
+    "to": "students2027@univ.example",
+    "labels": [
+     "INBOX"
+    ],
+    "parts": [
+     {
+      "mimeType": "text/plain",
+      "text": "The internship programme starts on October 10, 2026. Interested candidates must apply by November 5, 2026 11:59 PM IST."
+     }
+    ],
+    "attachments": [],
+    "subject_assumed": false
+   },
+   "expected": {
+    "job_related": true,
+    "audience": "broadcast",
+    "events": [
+     {
+      "kind": "application",
+      "date": "2026-11-05",
+      "start": "23:59"
+     }
+    ],
+    "profile_effect": "show"
+   }
+  },
+  {
+   "id": "syn_no_year_personal",
+   "source": "synthetic",
+   "now": "2026-10-01T09:00:00+05:30",
+   "note": "Year missing; addressed personally so it must never be hidden by the profile filter.",
+   "email": {
+    "subject": "Interview invitation - Backend Engineer",
+    "sender": "Priya (HR) <priya@acme-tech.example>",
+    "to": "you@gmail.com",
+    "labels": [
+     "INBOX"
+    ],
+    "parts": [
+     {
+      "mimeType": "text/plain",
+      "text": "Hi Anshum,\n\nThank you for applying. Your interview is on Oct 15 at 3:00 PM. Please confirm by replying to this email."
+     }
+    ],
+    "attachments": [],
+    "subject_assumed": false
+   },
+   "expected": {
+    "job_related": true,
+    "audience": "personal",
+    "events": [
+     {
+      "kind": "interview",
+      "date": "2026-10-15",
+      "start": "15:00"
+     }
+    ],
+    "profile_effect": "show"
+   }
+  },
+  {
+   "id": "syn_mech_only",
+   "source": "synthetic",
+   "now": "2026-10-01T09:00:00+05:30",
+   "note": "Extraction still finds the date; the relevance filter hides it for a Computer Science profile with reason 'Mechanical only'.",
+   "email": {
+    "subject": "Hiring: Graduate Engineer Trainee (Mechanical) 2027",
+    "sender": "Placements <placements@univ.example>",
+    "to": "campusnotice2027@univ.example",
+    "labels": [
+     "INBOX"
+    ],
+    "parts": [
+     {
+      "mimeType": "text/plain",
+      "text": "Eligibility: B.Tech Mechanical / Production Engineering, 2027 batch, minimum CGPA 7.0.\nRegister by 12 October 2026, 6:00 PM."
+     }
+    ],
+    "attachments": [],
+    "subject_assumed": false
+   },
+   "expected": {
+    "job_related": true,
+    "audience": "broadcast",
+    "events": [
+     {
+      "kind": "registration",
+      "date": "2026-10-12",
+      "start": "18:00"
+     }
+    ],
+    "profile_effect": "hide_for_software_profile"
+   }
+  },
+  {
+   "id": "syn_all_branches",
+   "source": "synthetic",
+   "now": "2026-10-01T09:00:00+05:30",
+   "note": "Same shape as the mechanical mail but open to every branch: must be shown.",
+   "email": {
+    "subject": "Hiring: Associate Engineer 2027 (all branches)",
+    "sender": "Placements <placements@univ.example>",
+    "to": "campusnotice2027@univ.example",
+    "labels": [
+     "INBOX"
+    ],
+    "parts": [
+     {
+      "mimeType": "text/plain",
+      "text": "Open to all B.Tech branches, 2027 batch, CGPA 6.5 and above.\nRegister by 12 October 2026, 6:00 PM."
+     }
+    ],
+    "attachments": [],
+    "subject_assumed": false
+   },
+   "expected": {
+    "job_related": true,
+    "audience": "broadcast",
+    "events": [
+     {
+      "kind": "registration",
+      "date": "2026-10-12",
+      "start": "18:00"
+     }
+    ],
+    "profile_effect": "show"
+   }
+  },
+  {
+   "id": "syn_newsletter",
+   "source": "synthetic",
+   "now": "2026-10-01T09:00:00+05:30",
+   "note": "Keywords 'role', 'career', 'apply', 'due to', 'ends' appear but this is marketing. Nothing should be created.",
+   "email": {
+    "subject": "Weekly deals: control your role in the market",
+    "sender": "Shop <noreply@shop.example>",
+    "to": "you@gmail.com",
+    "labels": [
+     "INBOX"
+    ],
+    "parts": [
+     {
+      "mimeType": "text/plain",
+      "text": "Sale ends 12/10/2026! Due to high demand, stocks are limited. Apply coupon CAREER10 at checkout."
+     }
+    ],
+    "attachments": [],
+    "subject_assumed": false
+   },
+   "expected": {
+    "job_related": false,
+    "audience": "broadcast",
+    "events": [],
+    "profile_effect": "hide"
+   }
+  },
+  {
+   "id": "syn_reply_quote",
+   "source": "synthetic",
+   "now": "2026-10-01T09:00:00+05:30",
+   "note": "The only date is inside the quoted earlier message; replies must not create events.",
+   "email": {
+    "subject": "Re: Aptitude test schedule",
+    "sender": "Rohit <rohit@univ.example>",
+    "to": "campusnotice2027@univ.example",
+    "labels": [
+     "INBOX"
+    ],
+    "parts": [
+     {
+      "mimeType": "text/plain",
+      "text": "Thanks, noted.\n\nOn Mon, Sep 14, 2026 at 10:00 AM Placements <placements@univ.example> wrote:\n> The aptitude test will be held on 17-Oct-26 at 7:30 PM.\n> Regards"
+     }
+    ],
+    "attachments": [],
+    "subject_assumed": false
+   },
+   "expected": {
+    "job_related": false,
+    "audience": "broadcast",
+    "events": [],
+    "profile_effect": "hide"
+   }
+  }
+ ]
+}

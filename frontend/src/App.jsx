@@ -3,6 +3,7 @@ import { Toaster } from 'react-hot-toast'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import LandingPage from './pages/LandingPage'
 import HomePage from './pages/HomePage'
+import GoalsPage from './pages/GoalsPage'
 
 function AppRoutes() {
   const { user, loading } = useAuth()
@@ -17,13 +18,17 @@ function AppRoutes() {
 
   return (
     <Routes>
-      <Route 
-        path="/" 
-        element={user ? <Navigate to="/dashboard" replace /> : <LandingPage />} 
+      <Route
+        path="/"
+        element={user ? <Navigate to="/dashboard" replace /> : <LandingPage />}
       />
-      <Route 
-        path="/dashboard" 
-        element={user ? <HomePage /> : <Navigate to="/" replace />} 
+      <Route
+        path="/dashboard"
+        element={user ? <HomePage /> : <Navigate to="/" replace />}
+      />
+      <Route
+        path="/goals"
+        element={user ? <GoalsPage /> : <Navigate to="/" replace />}
       />
     </Routes>
   )

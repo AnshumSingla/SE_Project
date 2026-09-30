@@ -6,107 +6,42 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000
 const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000,
-  withCredentials: true, // ✅ Enable credentials for CORS
+  withCredentials: false, // auth is a Bearer token, not a cookie
   headers: {
     'Content-Type': 'application/json',
   },
 })
 
-// Request interceptor to add auth token if available
-api.interceptors.request.use(
-  (config) => {
-    const user = JSON.parse(localStorage.getItem('jobReminderUser') || '{}')
-    if (user.token) {
-      config.headers.Authorization = `Bearer ${user.token}`
-    }
-    return config
-  },
-  (error) => {
-    return Promise.reject(error)
-  }
-)
+// Every request carries the signed API token issued at sign-in. It proves identity
+// only: Google credentials live on the server and never reach the browser.
+api.interceptors.request.use((config) => {
+  const user = JSON.parse(localStorage.getItem('jobReminderUser') || '{}')
+  if (user.apiToken) config.headers.Authorization = `Bearer ${user.apiToken}`
+  return config
+})
 
-// Token refresh helper
-const refreshAccessToken = async () => {
-  try {
-    const user = JSON.parse(localStorage.getItem('jobReminderUser') || '{}')
-    if (!user.credentials?.refresh_token) {
-      throw new Error('No refresh token available')
-    }
-
-    console.log('🔄 Refreshing access token...')
-    const response = await axios.post(`${API_BASE_URL}/api/auth/refresh`, {
-      refresh_token: user.credentials.refresh_token,
-      client_id: user.credentials.client_id,
-      client_secret: user.credentials.client_secret
-    })
-
-    if (response.data.success) {
-      // Update stored credentials with new access token and expiry
-      user.credentials.token = response.data.access_token
-      user.credentials.expiry_time = response.data.expiry_time
-      user.accessToken = response.data.access_token
-      localStorage.setItem('jobReminderUser', JSON.stringify(user))
-      console.log('✅ Access token refreshed successfully')
-      console.log('⏱️  New expiry time:', new Date(response.data.expiry_time).toLocaleString())
-      return response.data.access_token
-    }
-    
-    // Handle invalid_grant error
-    if (response.data.error === 'invalid_grant') {
-      console.error('❌ Refresh token revoked')
-      localStorage.removeItem('jobReminderUser')
-      localStorage.removeItem('lastSync')
-      window.location.href = '/'
-      return null
-    }
-    
-    throw new Error('Token refresh failed')
-  } catch (error) {
-    console.error('❌ Token refresh failed:', error)
-    
-    // Check for invalid_grant in error response
-    if (error.response?.data?.error === 'invalid_grant') {
-      console.error('❌ Refresh token revoked - redirecting to login')
-      localStorage.removeItem('jobReminderUser')
-      localStorage.removeItem('lastSync')
-      window.location.href = '/'
-    }
-    
-    return null
-  }
-}
-
-// Response interceptor for error handling and auto token refresh
+// A 401 means the token is missing, expired or not the owner's: sign in again.
 api.interceptors.response.use(
   (response) => response,
-  async (error) => {
-    const originalRequest = error.config
-    
-    // If 401 and we haven't tried refreshing yet
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true
-      
-      console.log('🔑 Detected 401 - attempting token refresh...')
-      const newAccessToken = await refreshAccessToken()
-      
-      if (newAccessToken) {
-        // Retry original request with new token
-        console.log('🔄 Retrying original request with new token')
-        return api(originalRequest)
-      } else {
-        // Refresh failed - redirect to login
-        console.log('❌ Token refresh failed - redirecting to login')
-        localStorage.removeItem('jobReminderUser')
-        localStorage.removeItem('lastSync')
-        window.location.href = '/'
-      }
+  (error) => {
+    if (error.response?.status === 401 && localStorage.getItem('jobReminderUser')) {
+      localStorage.removeItem('jobReminderUser')
+      localStorage.removeItem('lastSync')
+      window.location.href = '/'
     }
-    
-    console.error('API Error:', error)
     return Promise.reject(error)
   }
 )
+
+// Kept so call sites stay unchanged: nothing credential-like is sent in bodies or
+// query strings any more. null = not signed in.
+const getAuthPayload = () => {
+  const user = JSON.parse(localStorage.getItem('jobReminderUser') || '{}')
+  return user.apiToken ? {} : null
+}
+const toQueryAuth = () => ({})
+
+const NOT_SIGNED_IN = 'Please sign in again to continue'
 
 export const apiService = {
   // Health check
@@ -119,40 +54,102 @@ export const apiService = {
     }
   },
 
-  // Scan emails for job opportunities
-  scanEmails: async (userId, options = {}) => {
+  // Background-scan features: the server scans, adds confident events, queues the unsure ones.
+  runScan: async (options = {}) => {
+    if (!getAuthPayload()) throw new Error(NOT_SIGNED_IN)
     try {
-      const user = JSON.parse(localStorage.getItem('jobReminderUser') || '{}')
-      const payload = {
+      const response = await api.post('/api/scan/run', { reset_seen: !!options.resetSeen })
+      return response.data
+    } catch (error) {
+      const err = new Error(error.response?.data?.message || error.response?.data?.error || 'Scan failed')
+      err.code = error.response?.data?.error
+      throw err
+    }
+  },
+
+  getReview: async () => {
+    if (!getAuthPayload()) throw new Error(NOT_SIGNED_IN)
+    try {
+      const response = await api.get('/api/review')
+      return response.data
+    } catch (error) {
+      const err = new Error(error.response?.data?.message || error.response?.data?.error || 'Failed to load review queue')
+      err.code = error.response?.data?.error
+      throw err
+    }
+  },
+
+  // action: 'accept' (create the calendar event) | 'dismiss' (never show again)
+  resolveReview: async (eventId, action) => {
+    if (!getAuthPayload()) throw new Error(NOT_SIGNED_IN)
+    try {
+      const response = await api.post(`/api/review/${encodeURIComponent(eventId)}/${action}`)
+      return response.data
+    } catch (error) {
+      throw new Error(error.response?.data?.error || 'Action failed')
+    }
+  },
+
+  // Delete-my-data: removes the stored token, profile and scan state, then revokes access.
+  deleteAccount: async () => {
+    if (!getAuthPayload()) throw new Error(NOT_SIGNED_IN)
+    try {
+      const response = await api.delete('/api/account')
+      return response.data
+    } catch (error) {
+      throw new Error(error.response?.data?.error || 'Could not delete your data')
+    }
+  },
+
+  // Profile (role, discipline, graduation year...) stored in the user's own Google Drive
+  getProfile: async () => {
+    const auth = getAuthPayload()
+    if (!auth) throw new Error(NOT_SIGNED_IN)
+    try {
+      const response = await api.get('/api/profile', { params: toQueryAuth(auth) })
+      return response.data.profile
+    } catch (error) {
+      const err = new Error(error.response?.data?.message || error.response?.data?.error || 'Failed to load profile')
+      err.code = error.response?.data?.error
+      throw err
+    }
+  },
+
+  saveProfile: async (profile) => {
+    const auth = getAuthPayload()
+    if (!auth) throw new Error(NOT_SIGNED_IN)
+    try {
+      const response = await api.put('/api/profile', { profile, ...auth })
+      return response.data.profile
+    } catch (error) {
+      const err = new Error(error.response?.data?.message || error.response?.data?.error || 'Failed to save profile')
+      err.code = error.response?.data?.error
+      throw err
+    }
+  },
+
+  // Scan emails for job opportunities (read-only: returns candidates, writes nothing)
+  scanEmails: async (userId, options = {}) => {
+    const auth = getAuthPayload()
+    if (!auth) throw new Error(NOT_SIGNED_IN)
+    try {
+      const response = await api.post('/api/emails/scan', {
         user_id: userId,
         max_emails: options.max_emails || 50,
         days_back: options.days_back || 7,
-        search_query: options.search_query || ''
-      }
-      
-      // Send full credentials with all required fields if available
-      if (user.credentials && user.credentials.refresh_token) {
-        payload.credentials = {
-          token: user.credentials.token,
-          refresh_token: user.credentials.refresh_token,
-          token_uri: user.credentials.token_uri || 'https://oauth2.googleapis.com/token',
-          client_id: user.credentials.client_id,
-          client_secret: user.credentials.client_secret,
-          scopes: user.credentials.scopes || ['openid', 'https://www.googleapis.com/auth/userinfo.email', 'https://www.googleapis.com/auth/userinfo.profile', 'https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/calendar']
-        }
-      } else {
-        payload.access_token = user.accessToken || user.token || 'demo_token_for_testing'
-      }
-      
-      const response = await api.post('/api/emails/scan', payload)
+        search_query: options.search_query || '',
+        ...auth
+      })
       return response.data
     } catch (error) {
       throw new Error(error.response?.data?.error || 'Failed to scan emails')
     }
   },
 
-  // Create calendar reminders
+  // Create calendar events for accepted candidates (idempotent on the backend)
   createCalendarReminders: async (userId, emails, reminderPreferences = {}) => {
+    const auth = getAuthPayload()
+    if (!auth) throw new Error(NOT_SIGNED_IN)
     try {
       const response = await api.post('/api/calendar/reminders', {
         user_id: userId,
@@ -160,7 +157,8 @@ export const apiService = {
         reminder_preferences: {
           default_reminders: reminderPreferences.default_reminders || [1440, 60],
           urgent_reminders: reminderPreferences.urgent_reminders || [10080, 1440, 60]
-        }
+        },
+        ...auth
       })
       return response.data
     } catch (error) {
@@ -168,32 +166,14 @@ export const apiService = {
     }
   },
 
-  // Get upcoming deadlines
+  // Get upcoming deadlines created by this app
   getUpcomingDeadlines: async (userId, daysAhead = 90) => {
+    const auth = getAuthPayload()
+    if (!auth) return { success: true, upcoming_events: [], note: NOT_SIGNED_IN }
     try {
-      const user = JSON.parse(localStorage.getItem('jobReminderUser') || '{}')
-      const params = {
-        user_id: userId,
-        days_ahead: daysAhead
-      }
-      
-      // If we have full credentials, send them as JSON string with all required fields
-      if (user.credentials && user.credentials.refresh_token) {
-        // Ensure all required fields are present
-        const credentialsToSend = {
-          token: user.credentials.token,
-          refresh_token: user.credentials.refresh_token,
-          token_uri: user.credentials.token_uri || 'https://oauth2.googleapis.com/token',
-          client_id: user.credentials.client_id,
-          client_secret: user.credentials.client_secret,
-          scopes: user.credentials.scopes || ['openid', 'https://www.googleapis.com/auth/userinfo.email', 'https://www.googleapis.com/auth/userinfo.profile', 'https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/calendar']
-        }
-        params.credentials = JSON.stringify(credentialsToSend)
-      } else {
-        params.access_token = user.accessToken || user.token
-      }
-      
-      const response = await api.get('/api/calendar/upcoming', { params })
+      const response = await api.get('/api/calendar/upcoming', {
+        params: { user_id: userId, days_ahead: daysAhead, ...toQueryAuth(auth) }
+      })
       return response.data
     } catch (error) {
       throw new Error(error.response?.data?.error || 'Failed to get upcoming deadlines')
@@ -202,78 +182,47 @@ export const apiService = {
 
   // Delete calendar reminder
   deleteReminder: async (userId, eventId) => {
+    const auth = getAuthPayload()
+    if (!auth) throw new Error(NOT_SIGNED_IN)
     try {
-      const user = JSON.parse(localStorage.getItem('jobReminderUser') || '{}')
-      const params = {
-        user_id: userId
-      }
-      
-      // Send credentials for serverless authentication with all required fields
-      if (user.credentials && user.credentials.refresh_token) {
-        const credentialsToSend = {
-          token: user.credentials.token,
-          refresh_token: user.credentials.refresh_token,
-          token_uri: user.credentials.token_uri || 'https://oauth2.googleapis.com/token',
-          client_id: user.credentials.client_id,
-          client_secret: user.credentials.client_secret,
-          scopes: user.credentials.scopes || ['openid', 'https://www.googleapis.com/auth/userinfo.email', 'https://www.googleapis.com/auth/userinfo.profile', 'https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/calendar']
-        }
-        params.credentials = JSON.stringify(credentialsToSend)
-      } else {
-        params.access_token = user.accessToken || user.token
-      }
-      
-      const response = await api.delete(`/api/calendar/reminders/${eventId}`, { params })
+      const response = await api.delete(`/api/calendar/reminders/${eventId}`, {
+        params: { user_id: userId, ...toQueryAuth(auth) }
+      })
       return response.data
     } catch (error) {
       throw new Error(error.response?.data?.error || 'Failed to delete reminder')
     }
   },
 
-  // Send notification
-  sendNotification: async (userId, notificationData) => {
+
+
+  // Chat with Gemini AI about upcoming deadlines
+  chatWithAI: async (userId, message, events = [], history = []) => {
     try {
-      const response = await api.post('/api/notifications/send', {
+      const response = await api.post('/api/ai/chat', {
         user_id: userId,
-        notification_type: notificationData.type,
-        message: notificationData.message,
-        event_id: notificationData.eventId,
-        channels: notificationData.channels || ['push']
+        message,
+        events,
+        history
       })
       return response.data
     } catch (error) {
-      throw new Error(error.response?.data?.error || 'Failed to send notification')
+      throw new Error(error.response?.data?.error || 'Failed to connect to AI assistant')
     }
   },
 
-  // Get dashboard analytics
-  getDashboardAnalytics: async (userId, period = 'month') => {
+  // Get AI-generated priority plan for upcoming deadlines
+  getPriorityPlan: async (userId, events = []) => {
     try {
-      const response = await api.get('/api/analytics/dashboard', {
-        params: {
-          user_id: userId,
-          period: period
-        }
-      })
-      return response.data
-    } catch (error) {
-      throw new Error(error.response?.data?.error || 'Failed to get dashboard analytics')
-    }
-  },
-
-  // Setup user credentials (for OAuth)
-  setupUserCredentials: async (userId, credentials) => {
-    try {
-      const response = await api.post('/api/auth/setup', {
+      const response = await api.post('/api/ai/prioritize', {
         user_id: userId,
-        gmail_credentials: credentials.gmail,
-        calendar_credentials: credentials.calendar
+        events
       })
       return response.data
     } catch (error) {
-      throw new Error(error.response?.data?.error || 'Failed to setup user credentials')
+      throw new Error(error.response?.data?.error || 'Failed to get AI priority plan')
     }
   }
 }
 
-export default api
+export default api

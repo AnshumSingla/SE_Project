@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { Calendar, momentLocalizer } from 'react-big-calendar'
 import moment from 'moment'
@@ -8,8 +8,16 @@ import EmailScanner from '../components/EmailScanner'
 import CustomReminderModal from '../components/CustomReminderModal'
 import StatsCards from '../components/StatsCards'
 import UpcomingDeadlines from '../components/UpcomingDeadlines'
+import AIAssistant from '../components/AIAssistant'
+import TaskPriorityPanel from '../components/TaskPriorityPanel'
+import ProfileCard from '../components/ProfileCard'
+import FilteredOut from '../components/FilteredOut'
+import ReviewQueue from '../components/ReviewQueue'
+import ActivityLog from '../components/ActivityLog'
 import { apiService } from '../services/apiService'
 import toast from 'react-hot-toast'
+import { driver } from 'driver.js'
+import 'driver.js/dist/driver.css'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
 import '../styles/calendar.css'
 
@@ -22,264 +30,105 @@ const HomePage = () => {
   const [showReminderModal, setShowReminderModal] = useState(false)
   const [calendarView, setCalendarView] = useState('month')
   const [selectedDate, setSelectedDate] = useState(new Date())
+  const [review, setReview] = useState({ review: [], filtered_out: [], log: [], last_scan: null })
+  const [aiMessage, setAiMessage] = useState(null) // pre-fills AI chat from other components
+  const syncing = useRef(false) // guards against overlapping syncs (double click, StrictMode double effect)
 
   useEffect(() => {
-    if (user) initializeSync()
+    if (user) runSync()
   }, [user])
 
-  const initializeSync = async () => {
-    setLoading(true)
-
-    try {
-      // Check if we need to scan Gmail (once per day)
-      const lastSync = localStorage.getItem('lastSync')
-      const nowTimestamp = Date.now()
-      const oneDay = 24 * 60 * 60 * 1000 // 1 day in ms
-      const shouldScanEmails = !lastSync || nowTimestamp - lastSync > oneDay
-      
-      // 1️⃣ Load all existing reminders from Google Calendar
-      const calendarResponse = await apiService.getUpcomingDeadlines(user.id)
-      const now = new Date()
-      const existingEvents = calendarResponse.success
-        ? calendarResponse.upcoming_events
-            .map(event => ({
-              id: event.event_id,
-              title: event.title.trim(),
-              start: new Date(event.start_time),
-              end: new Date(event.start_time),
-              description: event.description,
-              extendedProperties: event.extendedProperties,
-              resource: {
-                type: event.deadline_type,
-                urgency: event.urgency,
-                originalEmail: event.original_email,
-                daysUntil: event.days_until
-              }
-            }))
-            .filter(e => e.start >= now)
-        : []
-
-      setEvents(existingEvents)
-      console.log(`✅ Loaded ${existingEvents.length} existing Google Calendar reminders.`)
-
-      // 2️⃣ Only scan Gmail if it's been more than 24 hours
-      if (!shouldScanEmails) {
-        console.log('✅ Skipping Gmail scan – recent session')
-        toast.dismiss()
-        toast.success('Calendar synced successfully 🎉')
-        setLoading(false)
-        return
-      }
-      
-      console.log('🔄 Long gap detected – scanning Gmail for new emails...')
-      toast.loading('Syncing latest emails...')
-      const scanResults = await apiService.scanEmails(user.id)
-
-      if (!scanResults.success) {
-        toast.dismiss()
-        toast.error('Failed to scan Gmail for new deadlines')
-        setLoading(false)
-        return
-      }
-
-      // 3️⃣ Filter out expired and duplicate deadlines
-      const futureEmails = scanResults.emails.filter(email => {
-        if (!email.deadline?.has_deadline || !email.deadline?.date) return false
-        const date = new Date(email.deadline.date)
-        return date >= now
-      })
-
-      // 4️⃣ Identify new reminders not already on the calendar
-      const existingTitles = new Set(existingEvents.map(e => e.title.toLowerCase().replace(/📧\s*/g, '')))
-      const newDeadlines = futureEmails.filter(email => {
-        const normalizedTitle = email.subject.toLowerCase().trim()
-        return !Array.from(existingTitles).some(title => 
-          title.includes(normalizedTitle) || normalizedTitle.includes(title)
-        )
-      })
-
-      console.log(`📬 Found ${newDeadlines.length} new deadlines not in Google Calendar.`)
-
-      if (newDeadlines.length === 0) {
-        toast.dismiss()
-        toast.success('All reminders are already synced 🎉')
-        setLoading(false)
-        return
-      }
-
-      // 5️⃣ Create new events on Google Calendar
-      await apiService.createCalendarReminders(user.id, newDeadlines, {
-        default_reminders: [10080, 1440], // 1 week and 1 day before
-        urgent_reminders: [10080, 1440, 60]
-      })
-
-      // 6️⃣ Add to local state
-      const newEvents = newDeadlines.map(email => {
-        const dateStr = email.deadline.date
-        const timeStr = email.deadline.time || '23:59:00'
-        const deadlineDate = new Date(`${dateStr}T${timeStr}`)
-        return {
-          id: email.email_id,
-          title: `📧 ${email.subject}`,
-          start: deadlineDate,
-          end: deadlineDate,
-          resource: {
-            type: email.deadline.type || 'application',
-            urgency: email.classification.urgency || 'medium',
-            originalEmail: {
-              subject: email.subject,
-              sender: email.sender,
-              snippet: email.snippet
-            },
-            daysUntil: email.deadline.urgency_days || 0
+  const startOnboardingTour = () => {
+    const driverObj = driver({
+      showProgress: true,
+      animate: true,
+      overlayColor: 'rgba(0, 0, 0, 0.75)',
+      steps: [
+        {
+          element: '#welcome-header',
+          popover: {
+            title: 'Welcome to Smart Reminder! 🚀',
+            description: 'Let\'s take a quick 1-minute tour of your new AI-powered productivity workspace.',
+            side: 'bottom',
+            align: 'start'
+          }
+        },
+        {
+          element: '#email-scanner-card',
+          popover: {
+            title: 'AI Email Scanner 📧',
+            description: 'Scan your Gmail inbox. Our intelligent pipeline automatically parses, filters, and creates calendar deadlines for jobs, assignments, bills, and interviews.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#ai-priority-panel',
+          popover: {
+            title: 'Gemini Priority Planner 🎯',
+            description: 'Gemini automatically ranks all your upcoming tasks by urgency and importance, showing you exactly what to focus on today.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#quick-actions-card',
+          popover: {
+            title: 'Quick Actions ➕',
+            description: 'Manually add custom deadlines directly to your Google Calendar and toggle calendar views.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#upcoming-deadlines',
+          popover: {
+            title: 'Upcoming Deadlines ⏱️',
+            description: 'View chronological deadlines with automated urgency indicators. You can delete or ask the AI helper directly about any task.',
+            side: 'left',
+            align: 'start'
+          }
+        },
+        {
+          element: '#calendar-timeline-card',
+          popover: {
+            title: 'Calendar Timeline 📅',
+            description: 'An interactive monthly planner plotting all scheduled deadlines. Keep track of visual color blocks corresponding to task priority.',
+            side: 'top',
+            align: 'center'
+          }
+        },
+        {
+          element: '#ai-assistant-toggle',
+          popover: {
+            title: 'Floating AI Companion 💬',
+            description: 'Our conversational Gemini agent is always in reach! Chat with it to brainstorm, plan your week, or check calendar entries.',
+            side: 'left',
+            align: 'center'
           }
         }
-      })
+      ]
+    })
+    driverObj.drive()
+  }
 
-      setEvents(prev => {
-        const all = [...prev, ...newEvents]
-        const unique = all.filter(
-          (e, i, arr) =>
-            i === arr.findIndex(x => x.title === e.title && x.start.getTime() === e.start.getTime())
-        )
-        return unique.filter(e => e.start >= now)
-      })
-
-      // Update last sync timestamp
-      localStorage.setItem('lastSync', nowTimestamp.toString())
-
-      toast.dismiss()
-      toast.success(`Synced ${newDeadlines.length} new deadlines to calendar! 📅`)
-    } catch (err) {
-      console.error('❌ Error syncing reminders:', err)
-      toast.dismiss()
-      toast.error('Failed to sync reminders')
-    } finally {
-      setLoading(false)
+  useEffect(() => {
+    if (!loading && user) {
+      const hasOnboarded = localStorage.getItem('smartReminder_onboarded')
+      if (!hasOnboarded) {
+        const timer = setTimeout(() => {
+          startOnboardingTour()
+          localStorage.setItem('smartReminder_onboarded', 'true')
+        }, 1000)
+        return () => clearTimeout(timer)
+      }
     }
-  }
+  }, [loading, user])
 
-  const handleEmailScanComplete = async () => {
-    // Force a fresh scan, bypassing the 24-hour check
-    await forceScan()
-  }
-
-  const forceScan = async () => {
-    setLoading(true)
-    
-    try {
-      // 1️⃣ Load all existing reminders from Google Calendar
-      const calendarResponse = await apiService.getUpcomingDeadlines(user.id)
-      const now = new Date()
-      const existingEvents = calendarResponse.success
-        ? calendarResponse.upcoming_events
-            .map(event => ({
-              id: event.event_id,
-              title: event.title.trim(),
-              start: new Date(event.start_time),
-              end: new Date(event.start_time),
-              description: event.description,
-              extendedProperties: event.extendedProperties,
-              resource: {
-                type: event.deadline_type,
-                urgency: event.urgency,
-                originalEmail: event.original_email,
-                daysUntil: event.days_until
-              }
-            }))
-            .filter(e => e.start >= now)
-        : []
-
-      setEvents(existingEvents)
-      console.log(`✅ Loaded ${existingEvents.length} existing Google Calendar reminders.`)
-
-      // 2️⃣ Force Gmail scan (bypass 24-hour check)
-      console.log('🔄 Force scanning Gmail for new emails...')
-      toast.loading('Scanning emails...')
-      const scanResults = await apiService.scanEmails(user.id)
-
-      if (!scanResults.success) {
-        toast.dismiss()
-        toast.error('Failed to scan Gmail for new deadlines')
-        setLoading(false)
-        return
-      }
-
-      // 3️⃣ Filter out expired and duplicate deadlines
-      const futureEmails = scanResults.emails.filter(email => {
-        if (!email.deadline?.has_deadline || !email.deadline?.date) return false
-        const date = new Date(email.deadline.date)
-        return date >= now
-      })
-
-      // 4️⃣ Identify new reminders not already on the calendar
-      const existingTitles = new Set(existingEvents.map(e => e.title.toLowerCase().replace(/📧\s*/g, '')))
-      const newDeadlines = futureEmails.filter(email => {
-        const normalizedTitle = email.subject.toLowerCase().trim()
-        return !Array.from(existingTitles).some(title => 
-          title.includes(normalizedTitle) || normalizedTitle.includes(title)
-        )
-      })
-
-      console.log(`📬 Found ${newDeadlines.length} new deadlines not in Google Calendar.`)
-
-      if (newDeadlines.length === 0) {
-        toast.dismiss()
-        toast.success('All reminders are already synced 🎉')
-        setLoading(false)
-        return
-      }
-
-      // 5️⃣ Create new events on Google Calendar
-      await apiService.createCalendarReminders(user.id, newDeadlines, {
-        default_reminders: [10080, 1440], // 1 week and 1 day before
-        urgent_reminders: [10080, 1440, 60]
-      })
-
-      // 6️⃣ Add to local state
-      const newEvents = newDeadlines.map(email => {
-        const dateStr = email.deadline.date
-        const timeStr = email.deadline.time || '23:59:00'
-        const deadlineDate = new Date(`${dateStr}T${timeStr}`)
-        return {
-          id: email.email_id,
-          title: `📧 ${email.subject}`,
-          start: deadlineDate,
-          end: deadlineDate,
-          resource: {
-            type: email.deadline.type || 'application',
-            urgency: email.classification.urgency || 'medium',
-            originalEmail: {
-              subject: email.subject,
-              sender: email.sender,
-              snippet: email.snippet
-            },
-            daysUntil: email.deadline.urgency_days || 0
-          }
-        }
-      })
-
-      setEvents(prev => {
-        const all = [...prev, ...newEvents]
-        const unique = all.filter(
-          (e, i, arr) =>
-            i === arr.findIndex(x => x.title === e.title && x.start.getTime() === e.start.getTime())
-        )
-        return unique.filter(e => e.start >= now)
-      })
-
-      // Update last sync timestamp
-      const nowTimestamp = Date.now()
-      localStorage.setItem('lastSync', nowTimestamp.toString())
-
-      toast.dismiss()
-      toast.success(`Synced ${newDeadlines.length} new deadlines to calendar! 📅`)
-      
-      // 7️⃣ Refresh calendar events from Google Calendar to get actual event IDs
-      console.log('🔄 Refreshing calendar events from Google Calendar...')
-      const refreshedCalendar = await apiService.getUpcomingDeadlines(user.id)
-      if (refreshedCalendar.success) {
-        const refreshedEvents = refreshedCalendar.upcoming_events
+  // Google Calendar is the single source of truth for what is on the list.
+  const toCalendarEvents = (response, now) =>
+    response.success
+      ? response.upcoming_events
           .map(event => ({
             id: event.event_id,
             title: event.title.trim(),
@@ -295,17 +144,57 @@ const HomePage = () => {
             }
           }))
           .filter(e => e.start >= now)
-        
-        setEvents(refreshedEvents)
-        console.log(`✅ Refreshed ${refreshedEvents.length} events from Google Calendar`)
+      : []
+
+  const loadReview = async () => {
+    try {
+      const data = await apiService.getReview()
+      if (data.success) setReview(data)
+    } catch (err) {
+      console.error('Could not load review queue:', err.message) // not fatal: calendar still shows
+    }
+  }
+
+  const refreshEvents = async () =>
+    setEvents(toCalendarEvents(await apiService.getUpcomingDeadlines(user.id), new Date()))
+
+  // Opening the page only READS: the scheduled background scan already added new mail.
+  // "Scan now" asks the server to run that same scan immediately.
+  const runSync = async ({ force = false } = {}) => {
+    if (syncing.current) return
+    syncing.current = true
+    setLoading(true)
+    try {
+      await refreshEvents()
+      if (force) {
+        toast.loading('Scanning emails...')
+        const result = await apiService.runScan()
+        toast.dismiss()
+        if (result.status === 'paused') toast('Scanning is paused in your profile')
+        else if (result.added) toast.success(`Added ${result.added} new event${result.added > 1 ? 's' : ''} to your calendar`)
+        else toast.success('No new events found')
+        if (result.for_review) toast(`${result.for_review} item${result.for_review > 1 ? 's' : ''} need your review`)
+        await refreshEvents()
       }
-      
+      await loadReview()
     } catch (err) {
       console.error('❌ Error syncing reminders:', err)
       toast.dismiss()
-      toast.error('Failed to sync reminders')
+      toast.error(err.message || 'Failed to sync reminders')
     } finally {
+      syncing.current = false
       setLoading(false)
+    }
+  }
+
+  // Accept = create the event now; dismiss = never show it again.
+  const resolveItem = async (item, action) => {
+    try {
+      const res = await apiService.resolveReview(item.event_id, action)
+      if (action === 'accept') toast.success(res.status === 'created' ? 'Added to your calendar' : 'Already on (or removed from) your calendar')
+      await Promise.all([loadReview(), action === 'accept' ? refreshEvents() : Promise.resolve()])
+    } catch (err) {
+      toast.error(err.message || 'Could not update this item')
     }
   }
 
@@ -478,13 +367,21 @@ const HomePage = () => {
           transition={{ duration: 0.6 }}
         >
           {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-text-primary mb-2">
-              Welcome back, {user?.name?.split(' ')[0]}! 👋
-            </h1>
-            <p className="text-text-secondary">
-              Stay on top of your job applications and never miss a deadline
-            </p>
+          <div id="welcome-header" className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-text-primary mb-2">
+                Welcome back, {user?.name?.split(' ')[0]}! 👋
+              </h1>
+              <p className="text-text-secondary">
+                Stay ahead of your schedule, tasks, and deadlines.
+              </p>
+            </div>
+            <button
+              onClick={startOnboardingTour}
+              className="self-start sm:self-center bg-gradient-to-r from-primary-500/10 to-accent-500/10 hover:from-primary-500/20 hover:to-accent-500/20 border border-primary-500/30 text-primary-400 font-medium px-4 py-2 rounded-full text-xs flex items-center gap-1.5 transition-all duration-200"
+            >
+              🗺️ Take a Tour
+            </button>
           </div>
 
           {/* Stats Cards */}
@@ -497,12 +394,27 @@ const HomePage = () => {
             <div className="space-y-6">
               {/* Email Scanner */}
               <EmailScanner 
-                onScanComplete={handleEmailScanComplete}
+                onScan={() => runSync({ force: true })}
                 userId={user?.id}
+              />
+              
+              <ProfileCard />
+
+              <ReviewQueue items={review.review} onResolve={resolveItem} />
+
+              <FilteredOut items={review.filtered_out} onAddAnyway={(item) => resolveItem(item, 'accept')} onDismiss={(item) => resolveItem(item, 'dismiss')} />
+
+              <ActivityLog log={review.log} lastScan={review.last_scan} />
+
+              {/* Task Priority Panel */}
+              <TaskPriorityPanel
+                events={events}
+                onAskAI={(msg) => setAiMessage(msg)}
               />
 
               {/* Quick Actions */}
               <motion.div
+                id="quick-actions-card"
                 whileHover={{ scale: 1.02 }}
                 transition={{ duration: 0.1 }}
                 className="glass-card p-6 rounded-xl"
@@ -538,6 +450,7 @@ const HomePage = () => {
 
           {/* Calendar Section */}
           <motion.div
+            id="calendar-timeline-card"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
@@ -606,8 +519,15 @@ const HomePage = () => {
           onSave={handleAddCustomReminder}
         />
       )}
+
+      {/* Gemini AI Assistant */}
+      <AIAssistant
+        events={events}
+        externalMessage={aiMessage}
+        onExternalMessageConsumed={() => setAiMessage(null)}
+      />
     </div>
   )
 }
 
-export default HomePage
+export default HomePage

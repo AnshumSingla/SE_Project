@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.template
+*_token.json
+token.json
+credentials.json
+client_secret*.json
+__pycache__
+tests
+*.md
+venv
+.venv

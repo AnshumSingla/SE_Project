@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Mail, Scan, Loader2 } from 'lucide-react'
-import { apiService } from '../services/apiService'
 import toast from 'react-hot-toast'
 
-const EmailScanner = ({ onScanComplete, userId }) => {
+// The parent owns the sync (scan + create events + refresh). This component only
+// triggers it, so a click results in exactly ONE scan.
+const EmailScanner = ({ onScan, userId }) => {
   const [isScanning, setIsScanning] = useState(false)
   const [lastScan, setLastScan] = useState(null)
 
@@ -17,17 +18,8 @@ const EmailScanner = ({ onScanComplete, userId }) => {
     setIsScanning(true)
     
     try {
-      const response = await apiService.scanEmails(userId, {
-        max_emails: 50,
-        days_back: 7
-      })
-      
+      await onScan()
       setLastScan(new Date().toLocaleString())
-      
-      if (onScanComplete) {
-        onScanComplete(response)
-      }
-      
     } catch (error) {
       console.error('Email scan error:', error)
       toast.error('Failed to scan emails. Please try again.')
@@ -38,6 +30,7 @@ const EmailScanner = ({ onScanComplete, userId }) => {
 
   return (
     <motion.div
+      id="email-scanner-card"
       whileHover={{ scale: 1.02 }}
       className="glass-card p-6 rounded-xl neon-glow"
     >
@@ -47,7 +40,7 @@ const EmailScanner = ({ onScanComplete, userId }) => {
         </div>
         <div>
           <h3 className="text-lg font-semibold text-text-primary">Email Scanner</h3>
-          <p className="text-sm text-text-secondary">AI-powered job opportunity detection</p>
+          <p className="text-sm text-text-secondary">AI-powered deadline intelligence</p>
         </div>
       </div>
 
@@ -82,10 +75,10 @@ const EmailScanner = ({ onScanComplete, userId }) => {
         <div className="bg-dark-300/30 rounded-lg p-3">
           <h4 className="text-sm font-medium text-text-primary mb-2">What we scan for:</h4>
           <ul className="text-xs text-text-secondary space-y-1">
-            <li>• Job application deadlines</li>
-            <li>• Interview invitations</li>
-            <li>• Assessment submissions</li>
-            <li>• Application confirmations</li>
+            <li>• Job & Internship opportunities</li>
+            <li>• University assignments & exams</li>
+            <li>• Bills, fees & utility payments</li>
+            <li>• Interviews, meetings & bookings</li>
           </ul>
         </div>
       </div>
@@ -93,4 +86,4 @@ const EmailScanner = ({ onScanComplete, userId }) => {
   )
 }
 
-export default EmailScanner
+export default EmailScanner
